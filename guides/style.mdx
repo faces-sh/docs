@@ -116,8 +116,8 @@ Returns `202` and a **`job_id`**.
 declaration is used: a document's stored medium, or a thread's. A source that has never
 declared one is refused.
 
-`model` is optional and picks the model that runs the build; it decides what the build
-costs. See [What a build costs](#what-a-build-costs). By default, sources with uncompiled
+`model` is optional. It defaults to `gpt-6-luna`, and a model you name is used only on a
+linked ChatGPT plan. See [What a build costs](#what-a-build-costs). By default, sources with uncompiled
 material are compiled first (`compile: true`), billed as ordinary compiles; send
 `"compile": false` to skip that.
 
@@ -212,7 +212,7 @@ enough of the face's **own** writing in that medium.
 
 ```json
 {"auto": {"medium": "email", "multiple": 2, "words": 31240, "threshold": 15000,
-          "trigger": "upload", "oauth_only": true}}
+          "trigger": "upload", "oauth_only": false}}
 ```
 
 Who pays for an automatic build is the same as for a manual one: see
@@ -425,45 +425,59 @@ Omit both and the face works the medium out from your latest turn.
 
 ## What a build costs
 
-A build is billed per token, on the model it runs on: `model` in the request, or the default.
-Read that model's price in [`GET /v1/models`](/guides/chat#supported-models). On the default
-model a build often costs less than $0.50 per medium. There is no estimate before a build
-runs; what it spent appears in
-[`GET /v1/billing/usage`](/guides/billing) under the face, with the build's `job_id`.
+On Connect or Pro with a [linked ChatGPT account](/guides/oauth), a build runs on that
+account and is **not billed**. That holds for the default model and for any
+[Codex-eligible](/guides/oauth) model you name.
 
-| plan | with the default model | with a Codex-eligible model | with any other model |
-|------|------------------------|-----------------------------|----------------------|
-| Free | billed from credits, at the model's price plus 5% | billed from credits, at the model's price plus 5% | billed from credits, at the model's price plus 5% |
-| Connect, Pro | **not billed**: runs on the linked ChatGPT plan when one is linked | runs on the linked ChatGPT plan, and is not billed | **not billed** |
+**Every other build runs on `gpt-6-luna`, whatever `model` names, and is charged to
+credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/chat#supported-models) plus
+the published markup. This applies on every plan, to automatic builds as well as manual ones:
 
-On the default model with a linked ChatGPT plan, a build that cannot use the link (an expired
-sign-in, or the plan's usage limit) carries on and finishes on the Faces route, still not
-billed. A build that names its own `model` runs on that model.
+| plan | linked ChatGPT account | no link |
+|------|------------------------|---------|
+| Free | n/a | charged to credits, on `gpt-6-luna` |
+| Connect, Pro | **not billed** with the default model or a Codex-eligible one; charged to credits, on `gpt-6-luna`, with any other model | charged to credits, on `gpt-6-luna` |
+
+A build that loses the link partway (an expired sign-in, or the plan's usage limit) carries
+on with `gpt-6-luna`, and only the part the link did not run is charged. A build typically
+costs a few cents per medium. What it spent appears in
+[`GET /v1/billing/usage`](/guides/billing) under `gpt-6-luna`, with the build's `job_id`.
+
+A build that will be charged is refused up front when the balance cannot cover its
+estimate. Nothing is started or charged:
+
+```json
+{"detail": {"error_code": "insufficient_credit_for_style_build",
+            "estimated_usd": 0.12, "balance_usd": 0.03,
+            "message": "This style build is paid from credit and is estimated at up to $0.12; your balance is $0.03. Top up to start it, or link your ChatGPT account on a paid plan to build there at no charge. Nothing was charged."}}
+```
+
+`estimated_usd` is the most the build is expected to cost, from the size of its sources.
+An automatic build that credit cannot cover is not started: it appears in
+[`GET /v1/style/builds`](#lost-the-job-id) as a failed build with `error_code:
+"insufficient_credit_for_style_build"`, and is tried again later. Top up to let it run.
 
 The finished report's `served_by` says where it ran:
 
 | field | meaning |
 | --- | --- |
-| `route` | `"chatgpt"` when the build ran on the linked ChatGPT plan, whether on the default model or a model it named. `"faces"` when any of it ran on the Faces route, including a build that fell back partway. |
-| `model` | The model the build finished on. |
-| `fell_back` | `true` when the build started on the linked plan and finished on the Faces route. |
+| `route` | `"chatgpt"` when the build ran on the linked ChatGPT account. `"faces"` when any of it ran off the link, including a build that lost the link partway. |
+| `model` | The model the build finished on: `gpt-6-luna` for any build off the link. |
+| `fell_back` | `true` when the build started on the linked account and finished off it. |
 
 Compiling uncompiled sources first (`compile: true`) is billed separately, as an ordinary
 compile.
 
 ### `oauth_only`
 
-`oauth_only` applies only when `model` is [Codex-eligible](/guides/oauth). It defaults to
-**true**: the build runs on the linked ChatGPT plan, or not at all.
+`oauth_only` defaults to `false`. Send `oauth_only: true` to mean "the linked ChatGPT
+account or nothing, never charge":
 
-- **No ChatGPT account linked:** `409 chatgpt_not_linked`, before a job exists.
-- **The link is rejected** (usually an expired sign-in): the job fails with `CHATGPT_AUTH`.
-  Reconnect, then build again.
-- **`oauth_only: false`:** if ChatGPT is unavailable (no link, an expired sign-in, its usage
-  limit, or a reply that keeps stopping short), the build is billed from credits instead.
-
-On Free there is no ChatGPT route. Leave `oauth_only` out and the build bills credits; send
-`oauth_only: true` and it is a `422 oauth_only_unavailable`, and nothing is charged.
+- **A build that cannot run on the link** (no account linked, or a model that is not
+  Codex-eligible): `409 chatgpt_not_linked`, before a job exists.
+- **The link fails partway:** the build stops instead of being charged. Reconnect, then
+  build again.
+- **On Free:** `422 oauth_only_unavailable`, and nothing is charged.
 
 Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/chat#supported-models).
 
@@ -482,13 +496,11 @@ and nothing has started.
 | `422` | A live thread still has uncompiled messages | Compile it with `/make`, or send `compile: false`. |
 | `422` | `oauth_only_unavailable`: `oauth_only: true` on Free | Leave `oauth_only` out. |
 | `400` | The `model` is not one a build can run on | Pick another model. |
+| `402` | `insufficient_credit_for_style_build`: the balance cannot cover the build's `estimated_usd` | Top up, or [link ChatGPT](/guides/oauth) on Connect or Pro. |
 | `402` | The account cannot pay for compiling the sources first | Top up. |
-| `409` | `chatgpt_not_linked`: `oauth_only` with no ChatGPT account linked | [Link ChatGPT](/guides/oauth), or set `oauth_only: false`. |
+| `409` | `chatgpt_not_linked`: `oauth_only` on a build that cannot run on a linked ChatGPT account | [Link ChatGPT](/guides/oauth), or leave `oauth_only` out. |
 | `409` | A named source is busy right now | Wait, then retry. |
 | `409` | `build_in_progress`: this face and medium already has a build running | Poll the `job_id` it names. |
 | `409` | The face is locked | Unlock it. |
 
 `409` is the only one worth retrying automatically, and only after a delay.
-
-A Free account that cannot pay for the build itself gets its `job_id`, and the job then
-fails with `insufficient_credits`.

@@ -19,6 +19,11 @@ should expect either, and the key carrying the code is not the same on all of th
 `error` on some, `error_code` on the compile refusals, `code` on the provider-shaped
 ones.
 
+The provider-shaped errors, on `/v1/chat/completions`, `/v1/responses` and `/v1/messages`,
+carry `message`, `type`, `code` and `param`, plus `reason` and `retryable` where present.
+`provider`, when present, is the lab that made the model. An error from the model may read
+only "The model returned an error. Please try again."
+
 ## The reference code
 
 A `detail` ending in **`Reference <12 hex characters>`** means we logged that exact
@@ -43,7 +48,7 @@ to retry with, and the same request sent twice produces two different references
 | `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
 | `502` | A provider we call failed. | Cap your retries. |
-| `503` | Something we depend on was busy. | **Yes**: this is the code that asks you to send it again. |
+| `503` | Something we depend on was busy: "Could not … Please try again. Reference …", with `Retry-After`. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. |
 
 ### `404` where you might expect `403`
 

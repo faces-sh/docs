@@ -16,7 +16,7 @@ the closest or furthest matches to a single face.
 
 ## Scores
 
-A comparison returns a score under `face`. Scores run from `-1` to `1`. Higher is more alike. Only the scores are returned. A score involving a face you don't own is given to one decimal place.
+A comparison returns a score under `face`. Scores run from `-1` to `1`. Higher is more alike. Only the scores are returned. A score involving a face you don't own, including one shared with you or a teammate's, is given to one decimal place.
 
 ---
 
@@ -138,7 +138,7 @@ Each neighbour carries `name`, `specialty`, `description`, `owned_by` and
 ```json
 {
   "face": "mira",
-  "similarity": 0.81,
+  "similarity": 0.8,
   "owned_by": "someone",
   "name": "Mira",
   "specialty": "asking the question under your question",

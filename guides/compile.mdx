@@ -55,6 +55,7 @@ responses) say which:
 |-------|---------|
 | `starts_at` | The scheduled start, or once the compile has started, when it started. ISO 8601 UTC. `null` when the compile starts at once. |
 | `rush` | `true` when the compile was queued as a rush. |
+| `rush_premium_usd` | While the compile is queued for its scheduled start, what a rush would cost now, paid from credit: the difference from the standard rate when your plan covers the compile, the whole rush price when you pay as you go, `0` on a plan that is never charged. `null` otherwise. |
 
 To start now rather than at the scheduled start, send `{"rush": true}`:
 
@@ -68,6 +69,19 @@ curl -X POST https://api.faces.sh/v1/compile/documents/DOC_ID/make \
 A rush is billed at the rush rate (see [What a compile costs](#what-a-compile-costs)). When
 the compile would start at once anyway, a rush is accepted, billed at the standard rate, and
 answered `rush: false`. Threads take the same body at `POST /v1/compile/threads/{id}/make`.
+
+A compile already queued can be rushed too: send `{"rush": true}` to its `/make` and it
+starts now. The answer is `202`, like any `/make`, and the rush is billed as if it had been
+asked for up front. Without credit enough for it, the answer is `402`
+`insufficient_credit_for_rush` and the compile stays queued, unchanged. Asking again on a
+rush answers the same and charges nothing more. Once the compile has started it is too late:
+
+```json
+{"detail": {"error_code": "compile_already_started",
+            "message": "This document's compile has already started, so it can no longer be rushed."}}
+```
+
+A `/make` without `rush` on a queued compile is still a `409`.
 
 ### Declaring what a document is: required to save
 
@@ -363,11 +377,11 @@ curl "https://api.faces.sh/v1/compile/threads/THREAD_ID?status_only=true" \
  "finishing": true, "stall_reason": null, "error_code": null,
  "synced": false, "version": 4,
  "synced_version": null, "synced_at": null, "compilable": true, "compile_blocked_reason": null,
- "starts_at": null, "rush": false}
+ "starts_at": null, "rush": false, "rush_premium_usd": null}
 ```
 
 It carries `synced`, `version`, `synced_version`, `synced_at`, `compilable`,
-`compile_blocked_reason`, `starts_at` and `rush`, the same values as the full GET, so you
+`compile_blocked_reason`, `starts_at`, `rush` and `rush_premium_usd`, the same values as the full GET, so you
 never need the full GET to learn what was compiled. Poll this; fetch the full GET for the body.
 
 ### Every source on a face
@@ -415,6 +429,9 @@ An idle account gets empty lists and zeroes back.
 
 A source is listed under `faces` exactly when its [`finishing`](#finishing-the-one-field-to-branch-on)
 is `true`.
+
+Each source also carries `starts_at`, `rush` and `rush_premium_usd`, as on its
+[status](#when-a-compile-starts).
 
 ---
 
