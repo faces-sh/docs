@@ -103,7 +103,6 @@ charged**:
 |------|------|------------|
 | `409` | The face has nothing compiled | Compile something into it. |
 | `422` | The conversation has no message for the face to answer | Fix the request. |
-| `503` + `Retry-After` | Causes are warming up from a cold start (not streamed) | Retry after `Retry-After` seconds. |
 | `503` | The cause failed | Retry. |
 
 A face with **nothing compiled yet** still answers, from its name, its
@@ -284,8 +283,22 @@ An invalid `temperature`, for example, gets the same non-2xx JSON error the requ
 without `stream`. If the response had already started with keep-alive comments, the
 refusal arrives as the endpoint's error event above, carrying the model's status.
 
-A request that is not streamed has a time limit instead, and past it gets a `503` with
-`Retry-After`. If your client can stream, stream.
+### Requests that are not streamed
+
+**A face request that is not streamed waits for its answer too.** Most turns take 6 to 25
+seconds and answer as usual, with their real status code. Past about 40 seconds, the
+response starts with `200` and the header `X-Faces-Held: 1`, then whitespace, then the JSON.
+JSON parsers skip leading whitespace, so parse the body as usual. On a held response:
+
+- **A refusal comes back inside the `200`:** `detail`, plus an `error` object carrying the
+  real `status`. On `/v1/messages` it is Anthropic's `{"type": "error", "error": {...}}`.
+  When `X-Faces-Held` is set, check for `error` before reading the answer.
+- **`X-Faces-Cost-USD` is not sent.** The charge is in `usage` and in
+  [usage history](/guides/billing#usage-history).
+
+**Set your client timeout to at least 300 seconds** for any face request. A face request
+still working after 300 seconds, streamed or not, is stopped and answered `504`: retry.
+The OpenAI and Anthropic SDKs default to 600 seconds, which is enough.
 
 ---
 
@@ -472,7 +485,7 @@ Every response that calls a model includes these headers (a bare alias, which re
 |--------|---------|-------------|
 | `X-Faces-Provider` | `openai` | The lab that made the model (the same value as `provider` in `/v1/models`) |
 | `X-Faces-Billing` | `oauth` or `credits` | `oauth`: your linked ChatGPT subscription paid, so it cost you nothing. `credits`: billed to your balance. |
-| `X-Faces-Cost-USD` | `0.00` or `0.0035` | Cost charged to your account for this request |
+| `X-Faces-Cost-USD` | `0.00` or `0.0035` | Cost charged to your account for this request. Not sent on a [held](#requests-that-are-not-streamed) response. |
 
 `X-Faces-Billing` is the one to branch on: `oauth` means the call was free.
 
@@ -487,6 +500,7 @@ Every response that calls a model includes these headers (a bare alias, which re
 | `404` | Face not found or not owned by you |
 | `409` | `use_responses_for_free_oauth`: connected Connect or Pro user called a Codex-eligible model at `/chat/completions`; use `/v1/responses` (free) or set `api_fallback: true` |
 | `409` | The face has nothing compiled: compile something into it (see [The face's cause](#the-faces-cause)) |
-| `503` | Causes are warming up (`Retry-After`), or the cause failed: retry. Nothing was charged |
+| `503` | The cause failed: retry. Nothing was charged |
+| `504` | A face request still working after 300 seconds was stopped: retry |
 | `422` | `oauth_only_unavailable`: `oauth_only` on the Free plan. Nothing was charged |
 | `422` | Invalid request body, a face request over its [size limits](#limits-on-a-face), or an OAuth failure at `/v1/responses` (see [Errors when ChatGPT refuses](/guides/oauth#errors-when-chatgpt-refuses)) |

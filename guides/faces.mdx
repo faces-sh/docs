@@ -719,6 +719,9 @@ saved. It is refused, also with `422`, on `type=thread`, where each message carr
 own. See [Declaring what a document is](/guides/compile#declaring-what-a-document-is-required-to-save)
 for the accepted values.
 
+A document upload returns [`warnings`](/guides/compile#warnings). If it holds
+`looks_like_transcript`, the file reads as a conversation: upload it again as a thread.
+
 ### Supported file types
 
 | Type | Formats |

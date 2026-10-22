@@ -89,8 +89,9 @@ Add `questions`, in System One's format, exactly as on [`/v1/systemone`](/guides
 
 ## Speed
 
-A cause takes about 10 seconds. **Set your client timeout to at least 60 seconds.** Past about
+A cause takes about 10 seconds. **Set your client timeout to at least 300 seconds.** Past about
 40 seconds the response is held open: a `200` with the header `X-Faces-Held: 1`, and whitespace
 before the JSON. A failure after that point comes back inside the `200` as an error body, with
 `detail` and OpenAI's `error` object carrying the real `status`. When `X-Faces-Held` is set,
-check for `error` before reading `cause`.
+check for `error` before reading `cause`. A cause still working after 300 seconds is
+stopped and answered `504`: retry.
