@@ -46,6 +46,10 @@ Two fields, both declared and never inferred:
   `POST /v1/compile/documents`, so set it explicitly. A build whose sources are *all*
   third-person is refused (see below).
 
+A document is the face's own writing. An interview, transcript or dialogue is a thread:
+upload it with `type=thread` and `face_speaker`, so only the face's turns are used. See
+[Uploading threads](/guides/compile#uploading-threads).
+
 ### Many messages in one file
 
 For a mailbox or transcript export, upload the whole thing:
