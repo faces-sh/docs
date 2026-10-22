@@ -359,21 +359,8 @@ alone about a second. **Set your client timeout to at least 300 seconds.**
 `X-Faces-Held: 1`, and whitespace before the JSON. Parse the body as usual. A failure after
 that point comes back inside the `200` as an error body, with `detail` and OpenAI's `error`
 object carrying the real `status`, and no `answers`. When `X-Faces-Held` is set, check for
-`error` before reading `answers`. A request with a face still working after 300 seconds is
-stopped and answered `504`: retry.
-
-After an idle spell the decision models start cold, and warming takes about two minutes.
-The first request to meet a cold start waits about 35 seconds and then gets a `503`; every
-request during the warm-up gets its `503` at once, with a `Retry-After` header: the seconds
-until it should be warm. Honour it exactly.
-
-```
-HTTP/1.1 503 Service Unavailable
-Retry-After: 87
-```
-
-The `detail` says it is warming up, how long to wait, and that nothing was charged. Treat
-`503` as the retry signal, as [everywhere else](/errors#503-is-the-retry).
+`error` before reading `answers`. A request still working after 300 seconds is stopped and
+answered `504`: retry.
 
 ---
 
@@ -390,9 +377,9 @@ Every failure is JSON with a `detail` you can show.
 | `409` | The face has nothing compiled | Compile a source for it. |
 | `422` | The body is the wrong shape (a missing field, criteria that do not fit the type, questions with a face alone or none with a decision model), the other path's format (the message names the right path), or it is over a [limit](#limits) | Read the message. |
 | `429` | Over the per-minute request limit, with `Retry-After`; or Connect or Pro, cause allowance used and `api_fallback` off, with the reset date | Wait `Retry-After` seconds; for the allowance, turn on `api_fallback` or wait for the reset. |
-| `503` | Warming up from a cold start. Answered at once, with `Retry-After` | Retry after `Retry-After` seconds. |
 | `503` | The decision model is unavailable. Nothing is charged | Retry later, or use another decision model. |
 | `503` | The face's cause failed, or the decision model did. The message says which | Retry. |
 | `503` | The decision model you named is not available right now. Refused before any work, so nothing is charged | Try another decision model, or retry later. |
+| `504` | Still working after 300 seconds, so it was stopped | Retry. |
 
 A failure never falls back to an answer without the face.
