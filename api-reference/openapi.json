@@ -1657,7 +1657,7 @@
           "Faces"
         ],
         "summary": "Get Face Neighbors",
-        "description": "Find faces most (or least) similar to a given face.",
+        "description": "Find faces most (or least) similar to a given face.\nEach `similarity` is rounded to one decimal place when either face is not yours.",
         "operationId": "get_face_neighbors_v1_faces__face_id__neighbors_get",
         "parameters": [
           {
@@ -9074,12 +9074,12 @@
           "model": {
             "type": "string",
             "title": "Model",
-            "default": "mercury-3"
+            "default": "gpt-6-luna"
           },
           "oauth_only": {
             "type": "boolean",
             "title": "Oauth Only",
-            "default": true
+            "default": false
           },
           "sources": {
             "items": {
@@ -9379,6 +9379,18 @@
       },
       "CompileDocumentResponse": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "document_id": {
             "type": "string",
             "title": "Document Id"
@@ -9674,7 +9686,7 @@
           "rush": {
             "type": "boolean",
             "title": "Rush",
-            "description": "Start now, at the rush rate, rather than at the scheduled start. Has an effect only where compiles are scheduled; otherwise every compile already starts at once, at the standard rate, and the response says `rush: false`.",
+            "description": "Start now, at the rush rate, rather than at the scheduled start. Also accepted on a compile already queued for its scheduled start, which then starts now; once a compile has started it is too late, and the answer is 409 `compile_already_started`. Has an effect only where compiles are scheduled; otherwise every compile already starts at once, at the standard rate, and the response says `rush: false`.",
             "default": false
           }
         },
@@ -9728,6 +9740,18 @@
       },
       "CompileStatusResponse": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -9909,6 +9933,18 @@
       },
       "CompileThreadGetResponse": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "thread_id": {
             "type": "string",
             "title": "Thread Id"
@@ -10137,6 +10173,18 @@
       },
       "CompileThreadListItem": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "thread_id": {
             "type": "string",
             "title": "Thread Id"
@@ -10410,6 +10458,18 @@
       },
       "CompileThreadResponse": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "thread_id": {
             "type": "string",
             "title": "Thread Id"
@@ -12144,10 +12204,6 @@
             "type": "string",
             "title": "Llm Model"
           },
-          "provider": {
-            "type": "string",
-            "title": "Provider"
-          },
           "lab": {
             "anyOf": [
               {
@@ -12230,7 +12286,6 @@
         "type": "object",
         "required": [
           "llm_model",
-          "provider",
           "input_cost_per_million",
           "output_cost_per_million",
           "user_input_tokens",
@@ -14564,6 +14619,18 @@
       },
       "UploadDocumentResult": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "document_id": {
             "type": "string",
             "title": "Document Id"
@@ -14811,6 +14878,18 @@
       },
       "UploadThreadResult": {
         "properties": {
+          "rush_premium_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rush Premium Usd",
+            "description": "While this compile is queued for its scheduled start: what a rush would cost you now, in USD, paid from credit (the difference from the standard rate when your plan covers the compile, the whole rush price when it is paid as you go). Null once it has started, when it is already a rush, or when there is no scheduled start."
+          },
           "thread_id": {
             "type": "string",
             "title": "Thread Id"

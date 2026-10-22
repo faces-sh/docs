@@ -380,6 +380,9 @@ Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`]
 
 Each row, and `totals`, adds up: `provider_cost_usd + markup_usd = total_cost_usd`, the
 amount deducted.
+`faces-causes-latest` and `faces-compile-latest` are priced by Faces with no markup: on
+their rows `provider_cost_usd` and `markup_usd` are `0`, and the whole charge is in
+`total_cost_usd`.
 
 ## Invoices
 
