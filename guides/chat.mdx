@@ -39,6 +39,10 @@ curl -X POST https://api.faces.sh/v1/chat/completions \
 
 The face's cause steers the model's answer. You do not need to manage this context yourself.
 
+Each endpoint answers in its standard shape: OpenAI Chat Completions, OpenAI Responses or
+Anthropic Messages, with the face's `cause` added. On `/v1/chat/completions`, read why the
+answer ended from `finish_reason`.
+
 Name the answering model after `@`. A bare alias (`"model": "alice"`) returns the face's cause alone and no answer: see [The face's cause](#the-faces-cause).
 
 ---
@@ -278,6 +282,10 @@ nothing is charged:
 | `/v1/responses` | `event: error` with `{"type": "error", "code": "503", "message": "..."}` |
 | `/v1/messages` | `event: error` with `{"type": "error", "error": {"type": "overloaded_error", "message": "..."}}` |
 
+When the refusal has a code of its own, such as `oauth_rejected`, `code` carries it in place
+of the status (`error.code` on `/v1/messages`), and the event also carries the same `detail`
+as a refusal before the stream started.
+
 **A model that refuses a streamed request answers with an error, not an empty stream.**
 An invalid `temperature`, for example, gets the same non-2xx JSON error the request gets
 without `stream`. If the response had already started with keep-alive comments, the
@@ -292,7 +300,9 @@ JSON parsers skip leading whitespace, so parse the body as usual. On a held resp
 
 - **A refusal comes back inside the `200`:** `detail`, plus an `error` object carrying the
   real `status`. On `/v1/messages` it is Anthropic's `{"type": "error", "error": {...}}`.
-  When `X-Faces-Held` is set, check for `error` before reading the answer.
+  When `X-Faces-Held` is set, check for `error` before reading the answer. `detail` is the
+  same as the refusal would carry without the hold, and `error.code` is its code, such as
+  `oauth_rejected`.
 - **`X-Faces-Cost-USD` is not sent.** The charge is in `usage` and in
   [usage history](/guides/billing#usage-history).
 
