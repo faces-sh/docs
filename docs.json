@@ -1,0 +1,86 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Faces",
+  "colors": {
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5"
+  },
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://faces.sh"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get started",
+      "href": "https://faces.sh"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "authentication",
+              "errors"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/faces",
+              "guides/people",
+              "guides/system-faces",
+              "guides/sharing",
+              "guides/teams",
+              "guides/chat",
+              "guides/decisions",
+              "guides/causes",
+              "guides/sessions",
+              "guides/compile",
+              "guides/synthetic-faces",
+              "guides/style",
+              "guides/benchmark",
+              "guides/fidelity",
+              "guides/billing",
+              "guides/oauth"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": [
+              "concepts/compiled-faces",
+              "concepts/centroids"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "openapi": "api-reference/openapi.json"
+      }
+    ]
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude"
+    ]
+  }
+}

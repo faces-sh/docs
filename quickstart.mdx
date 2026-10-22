@@ -1,0 +1,232 @@
+---
+title: Quickstart
+description: "Set up Faces with your agent, or by hand: create a face, compile a document, and chat."
+---
+
+# Quickstart
+
+## With your agent
+
+Paste this into your coding agent, whether Claude Code, Codex, Cursor or any other that takes
+skills. Or read the skill first, at [faces-sh/faces-skill](https://github.com/faces-sh/faces-skill).
+
+```text
+Set up Faces for me:
+1. Run `npx skills add faces-sh/faces-skill -g -y`. If it doesn't detect you, add `-a <your agent>`, e.g. `-a claude-code`.
+2. Follow references/QUICKSTART.md in the faces skill: install the faces CLI, then sign me in, take my API key, or help me sign up here in this session or in a browser at faces.sh.
+3. Explain my `me` face to me, and help me edit its details. In Claude Code the slash commands only load after a restart, so then tell me to type /exit and relaunch with `claude --continue` to pick this session back up.
+4. Explain the Faces platform to me in one sentence and ask what I want to do next.
+```
+
+## By hand
+
+The rest of this page walks through the API directly: register an account, create a face,
+upload a source document, compile it, and run a chat completion.
+
+## Prerequisites
+
+- API base URL: `https://api.faces.sh`
+- Replace `YOUR_API_KEY` with a real key obtained in step 2.
+
+---
+
+## 1. Register
+
+<Note>
+  If you already have an account, skip to step 2.
+</Note>
+
+Register with email and password:
+
+```bash
+curl -X POST https://api.faces.sh/auth/register-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Alice",
+    "email": "alice@example.com",
+    "password": "Your-secure-password-1",
+    "username": "alice"
+  }'
+```
+
+`name` and `username` are optional: without a `username`, one is made from the email. The password needs 8 to 64 characters, with at least one uppercase letter, one lowercase letter and one digit.
+
+```json
+{
+  "success": true,
+  "messages": [],
+  "data": {
+    "token": "eyJ...",
+    "user_id": "311d4676-effb-4b20-...",
+    "activation_required": true,
+    "activation_checkout_url": "https://checkout.stripe.com/c/pay/cs_..."
+  },
+  "error": null,
+  "meta": null
+}
+```
+
+Use `data.token` as a Bearer token for subsequent requests, or create an API key (step 2).
+
+<Warning>
+  A new account starts with a **$0 balance**, so compiling and chatting answer `402` until it has credit. Open `activation_checkout_url` to add your first $5 (you can choose more on the payment page). See [Billing](/guides/billing).
+</Warning>
+
+---
+
+## 2. Create an API key
+
+API keys are created with the JWT from step 1. An API key cannot create, list or change keys.
+
+```bash
+curl -X POST https://api.faces.sh/v1/auth/api-keys \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "my-app"}'
+```
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "key": "sk-faces-...",
+  "key_prefix": "sk-faces-abc12345",
+  "name": "my-app"
+}
+```
+
+Store this key. All examples below use `YOUR_API_KEY`.
+
+---
+
+## 3. Create a face
+
+Your account already has one face, **`me`**: it is you, created with the account. Compile
+your own writing into it to make a face of yourself. See [Your `me` face](/guides/people#your-me-face).
+For this walkthrough, make a new one:
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "alice",
+    "name": "Alice",
+    "basic_facts": {"age": "30", "gender": "woman", "location": "Berlin, Germany"}
+  }'
+```
+
+```json
+{
+  "alias": "alice",
+  "object": "face",
+  "name": "Alice",
+  "basic_facts": {
+    "age": {"value": "30", "status": "stated", "identification": "user-provided"},
+    "gender": {"value": "woman", "status": "stated", "identification": "user-provided"},
+    "location": {"value": "Berlin, Germany", "status": "stated", "identification": "user-provided"}
+  },
+  "compiled": false
+}
+```
+
+---
+
+## 4. Upload a source document
+
+Upload a plain-text file written by or about the face. Say what kind of writing it is with `medium`: it is required, and a document without one is refused with `422`:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?medium=essay&perspective=first-person" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@alice_journal.txt"
+```
+
+`medium`, `perspective` and `type` are query parameters, not form fields. `medium` is one of `academic paper`, `blog post`, `conversation`, `email`, `essay`, `lecture`, `legal document`, `other`, `social post`, `text message` or `thread reply`. `perspective` is `first-person` when the face wrote the text and `third-person` (the default) when it is about the face.
+
+```json
+{
+  "document_id": "5a8fa752-62cd-4cbb-bb6f-...",
+  "alias": "alice",
+  "label": "alice_journal.txt",
+  "medium": "essay",
+  "perspective": "first-person",
+  "token_count": 347,
+  "status": "not_compiled",
+  "progress": 0.0,
+  "compilable": true,
+  "type": "document",
+  ...
+}
+```
+
+You can also upload PDF and Word (`.docx`) files, audio, or video; see [Faces guide](/guides/faces).
+
+---
+
+## 5. Compile
+
+Trigger compilation of the uploaded document, using the `document_id` from step 4:
+
+```bash
+curl -X POST https://api.faces.sh/v1/compile/documents/DOC_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Compilation is asynchronous (returns `202`). Poll the document status until it completes:
+
+```bash
+curl https://api.faces.sh/v1/compile/documents/DOC_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+When `status` is `compiled`, the face is ready. While `finishing` is `true` the
+compile is still in hand, so keep polling and offer no action. See [Compile](/guides/compile#finishing-the-one-field-to-branch-on).
+
+---
+
+## 6. Chat
+
+Use the OpenAI-compatible endpoint. Pass the face alias and the LLM to answer on in the `model` field, as `alias@model`:
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@gpt-5-mini",
+    "messages": [
+      {"role": "user", "content": "What do you think about Berlin?"}
+    ]
+  }'
+```
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "Berlin has this incredible energy: it rewards people who are comfortable with ambiguity...",
+      "cause": "They want my take on the city. I moved here because nobody asks who I am going to be..."
+    },
+    "finish_reason": "stop"
+  }],
+  "usage": { "prompt_tokens": 312, "completion_tokens": 87, "total_tokens": 399 }
+}
+```
+
+`cause` is the face's cause: the principal *why* behind the reply. Sending the bare alias (`"model": "alice"`) returns the cause alone, with `content` set to `null`, and charges only for it; see [The face's cause](/guides/chat#the-faces-cause).
+
+<Tip>
+  Any model from [`GET /v1/models`](/guides/chat#supported-models) can follow the `@`. See [Chat guide](/guides/chat).
+</Tip>
+
+---
+
+## Next steps
+
+- [Add more faces and manage your library](/guides/faces)
+- [Understand compilation](/guides/compile)
+- [Build synthetic faces from boolean expressions](/guides/synthetic-faces)
+- [Manage billing and subscription plans](/guides/billing)

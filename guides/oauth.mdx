@@ -1,0 +1,279 @@
+---
+title: Connect ChatGPT
+description: On subscription plans, connect your OpenAI account with OAuth to use Faces wrapped APIs directly with eligible Codex models without spending API credits or the 5% markup.
+---
+
+# Connect ChatGPT
+
+On the **Connect** and **Pro** plans, you can link a ChatGPT account. When you call a
+[wrapper](/introduction#the-causes-api-and-its-wrappers) with a Codex-eligible model, we
+route the model's part of the request through your ChatGPT plan. That part then costs you no
+API credits and carries no 5% markup.
+
+**The cause is billed as usual:** from your plan's [allowance](/guides/billing#allowances),
+then from credits. Linking ChatGPT changes who pays for the model, not for the face.
+
+<Note>
+  This applies at **`POST /v1/responses`** only. A model is Codex-eligible when
+  `codex_eligible` is `true` in [`GET /v1/models`](/guides/chat#supported-models). Read
+  the field rather than keeping a list. See
+  [Where it applies](#where-it-applies).
+</Note>
+
+---
+
+## Link a ChatGPT account
+
+Linking uses a device code: you get a short code, the user enters it at OpenAI in any
+browser, and approves. No browser extension and no callback URL are needed.
+
+### Step 1: start
+
+```bash
+curl -X POST https://api.faces.sh/v1/oauth/openai/device/start \
+  -H "Authorization: Bearer YOUR_KEY"
+```
+
+```json
+{
+  "device_auth_id": "uuid",
+  "user_code": "QUHO-OSQNW",
+  "verification_uri": "https://auth.openai.com/…",
+  "interval": 5,
+  "expires_at": "2026-05-28T11:13:36.575545Z"
+}
+```
+
+Show the user `user_code` and `verification_uri`, exactly as returned. Keep `device_auth_id`
+for polling. The code expires at `expires_at`, after 15 minutes.
+
+<Note>
+  **First-time setup.** ChatGPT requires device codes to be enabled once per account. Ask
+  users to open **[chatgpt.com/#settings/Security](https://chatgpt.com/#settings/Security)**
+  (the panel can take a few seconds to appear) and turn on **"Enable device code
+  authorization for Codex"** before they approve. On Team, Business and Enterprise
+  workspaces, a workspace admin must turn it on.
+</Note>
+
+### Step 2: the user approves
+
+The user opens `verification_uri`, enters `user_code`, signs in to ChatGPT, and approves.
+
+### Step 3: poll until complete
+
+```bash
+curl -X POST https://api.faces.sh/v1/oauth/openai/device/poll \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"device_auth_id": "uuid"}'
+```
+
+```json
+{
+  "status": "pending",
+  "retry_after": null,
+  "chatgpt_account_id": null,
+  "chatgpt_plan_type": null,
+  "account_email": null
+}
+```
+
+Poll every `interval` seconds:
+
+| `status` | Meaning |
+|----------|---------|
+| `pending` | Not approved yet. Poll again after `interval` seconds, or after `retry_after` seconds when it is set. |
+| `completed` | Linked. `account_email` and `chatgpt_plan_type` are returned, and readable later from `GET /v1/oauth`. Stop polling. |
+| `expired` | The code expired, or the id is unknown. Start again from Step 1. |
+
+### Cancel
+
+```bash
+curl -X POST https://api.faces.sh/v1/oauth/openai/device/cancel \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"device_auth_id": "uuid"}'
+```
+
+Returns `204`, even if the code is already gone. Call it when the user gives up.
+
+### Errors on start
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `403` | `{"detail": {"error": "connect_plan_required", "message": "..."}}` | Not on the Connect or Pro plan. |
+| `422` | `{"detail": {"error": "device_auth_not_enabled", "message": "...", "settings_url": "...", "settings_steps": [...]}}` | Device codes are not enabled on the ChatGPT account. See the first-time setup above. |
+| `502` / `503` | `{"detail": "..."}` | OpenAI is unreachable or failing. Retry a `503`; cap retries on a `502`. |
+
+---
+
+## See the linked account
+
+```bash
+curl https://api.faces.sh/v1/oauth \
+  -H "Authorization: Bearer YOUR_KEY"
+```
+
+```json
+[
+  {
+    "provider": "openai",
+    "scope": "openid profile email offline_access",
+    "connected_at": "2026-05-28T11:07:06.080492Z",
+    "chatgpt_account_id": "acct_...",
+    "chatgpt_plan_type": "plus",
+    "account_email": "you@example.com"
+  }
+]
+```
+
+Show "Connected as you@example.com (Plus)" from `account_email` and `chatgpt_plan_type`. A
+`chatgpt_plan_type` of `null` or `"free"` is a ChatGPT plan that cannot be used this way.
+
+---
+
+## Unlink
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/oauth/openai \
+  -H "Authorization: Bearer YOUR_KEY"
+```
+
+Returns `204 No Content`, whether or not an account was linked.
+
+---
+
+## Where it applies
+
+Only Codex-eligible models at `POST /v1/responses` run on your ChatGPT plan. Send them
+there whether or not the user has linked ChatGPT.
+
+| Caller | `POST /v1/responses` | `POST /v1/chat/completions` |
+|--------|----------------------|------------------------------|
+| ChatGPT linked | the model runs on the ChatGPT plan | `409`: use `/v1/responses` |
+| Not linked | the model is paid from credits, plus 5% | the model is paid from credits, plus 5% |
+
+Every other model, on any endpoint, is paid from credits at the model's listed price plus 5%.
+Sending each model to its `endpoint` in [`GET /v1/models`](/guides/chat#supported-models)
+puts Codex-eligible models at `/v1/responses`. Other models are served there too and paid
+from credits, so read `codex_eligible`, not `endpoint`, to know whether a request runs on the
+ChatGPT plan.
+
+<Note>
+  On Connect and Pro subscriptions with no ChatGPT linked, and `api_fallback` off, a Codex-eligible
+  model at `/v1/responses` is a `422` rather than a charge. Link ChatGPT, or turn
+  `api_fallback` on.
+</Note>
+
+### The `/chat/completions` guard
+
+A linked user who calls a Codex-eligible model at `/chat/completions` is refused, and
+charged nothing:
+
+```json
+HTTP 409
+{
+  "detail": {
+    "error": "use_responses_for_free_oauth",
+    "message": "'MODEL' is free via POST /v1/responses with your connected ChatGPT account. ...",
+    "model": "MODEL",
+    "free_endpoint": "/v1/responses"
+  }
+}
+```
+
+Send it to `/v1/responses` instead, or turn `api_fallback` on to pay for it at
+`/chat/completions`.
+
+---
+
+## When ChatGPT is unavailable
+
+On Connect and Pro subscriptions, the `api_fallback` preference is `false` by default: if ChatGPT is
+unavailable or refuses the request, it fails rather than being paid from credits. Turn it on
+to fall back to credits:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/user/preferences \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"api_fallback": true}'
+```
+
+Per request, `"oauth_only": true` on `/v1/responses` (or `"interviewer_billing_source":
+"oauth"` on an interview) refuses to fall back, whatever the preference says. A request
+parameter wins over the stored preference.
+
+On Free there is no ChatGPT route: `api_fallback` is always `true`, and setting it to `false`,
+or sending `oauth_only: true`, is a `422` `oauth_only_unavailable`. Nothing is charged.
+
+### Errors when ChatGPT refuses
+
+When ChatGPT refuses and fallback is off, the error is under `detail`:
+
+```json
+HTTP 422
+{
+  "detail": {
+    "error": "oauth_rejected",
+    "detail": "...",
+    "upstream_status": 400,
+    "fallback_available": true
+  }
+}
+```
+
+| `error` | When | What to do |
+|---------|------|------------|
+| `oauth_rejected` | ChatGPT refused the request, or no account is linked | `upstream_status` carries OpenAI's status. |
+| `model_not_supported` | The model is not available on this ChatGPT plan (`400`) | Pick another model. |
+| `oauth_workspace_residency` | The workspace's data-residency setting does not allow this (`401`) | No client-side fix. |
+| `oauth_rate_limited` | The ChatGPT plan's usage limit is reached (`429`) | Try later. When OpenAI says when it resets, the body adds `retry_after_seconds` and `resets_at` (unix time) and the response carries `Retry-After`. |
+| `oauth_incomplete` | ChatGPT stopped its reply before finishing, twice in a row (`502`) | Retry. Nothing was charged. |
+
+| Field | Description |
+|-------|-------------|
+| `detail` | A readable explanation. |
+| `upstream_status` | OpenAI's HTTP status. `null` when the request was refused before reaching OpenAI; absent on `oauth_incomplete`. |
+| `fallback_available` | `true` if your credit balance could pay for a retry with `api_fallback` on. |
+
+#### A reply that stops partway
+
+ChatGPT sometimes ends a reply without finishing it. Faces retries once. If the second try
+also stops short, `api_fallback` decides:
+
+- **on:** the request is answered from credits, like any other fallback;
+- **off:** `502 oauth_incomplete`, and nothing is charged.
+
+The same rule covers interviews and style builds. A style build with `oauth_only` never
+falls back: it retries, then fails.
+
+### Response headers
+
+| Header | Description |
+|--------|-------------|
+| `X-Faces-Billing` | `oauth`: the model ran on your ChatGPT plan. `credits`: the model was paid from your balance. |
+| `X-Faces-Provider` | The model's lab, for example `openai`. |
+| `X-Faces-Cost-USD` | What this request charged your credit balance. |
+
+---
+
+## Staying linked
+
+The link renews itself before it expires, so a request after a quiet spell does not fail. If
+renewal fails, link the account again.
+
+---
+
+## Interviews
+
+[Interview threads](/guides/compile#interview-threads) use the linked ChatGPT plan
+automatically on Connect and Pro. The
+[`interviewer_billing_source`](/guides/compile#interviewer-billing-source) field in each
+response says which was used: `"oauth"` or
+`"credits"`.
+
+If the interviewer model is not one ChatGPT serves, an interview on the `oauth` route is a
+`422` with `"error": "oauth_rejected"` and `"fallback_available": false`, before anything is
+sent. It is never moved to your credits.
+An interview with `interviewer_billing_source: "credits"` is not affected.

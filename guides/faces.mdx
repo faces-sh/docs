@@ -1,0 +1,1060 @@
+---
+title: Faces
+description: Create, configure, and manage your faces.
+---
+
+# Faces
+
+A face is a causal model compiled from source texts. Prompted, it returns a [cause](/guides/causes) that steers any model you pair it with. Faces are identified by a unique `alias` within your account.
+
+---
+
+## Create a face
+
+There is no limit on how many faces an account can create.
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "alice",
+    "name": "Alice",
+    "description": "Senior product designer based in Berlin.",
+    "basic_facts": {"age": "30", "gender": "woman", "location": "Berlin, Germany"}
+  }'
+```
+
+### Alias rules
+
+- Lowercase letters, numbers, and dashes only: `^[a-z0-9-]+$`
+- Maximum 32 characters
+- Must be unique within your account
+- Cannot be changed once created
+- `me` is reserved for [your `me` face](/guides/people#your-me-face), which every account already has (`400`)
+
+### `specialty`
+
+What the face is known for, in a few words: the one line a card shows under the
+name. Optional, **80 characters maximum**, single line.
+
+**Metadata only.** A specialty is not compiled into the face and does not change its causes.
+
+```json
+{"specialty": "asking the question under your question"}
+```
+
+- The cap is enforced by the server: 81 characters is a `422`.
+- Newlines and tabs **collapse to spaces** rather than being rejected. The length is measured *after*
+  that cleaning, so trailing whitespace never costs you characters.
+- Returned on every face, in both the list and the detail route, **without**
+  `?include=`.
+- Searched by `?q=`; see [Search](#search).
+- Send `"specialty": ""` to clear it. Omit the field on PATCH to leave it alone.
+
+Set it on create or update:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"specialty": "Socratic method and civic virtue"}'
+```
+
+### `description`
+
+Optional plain-text bio (up to **1500 characters**, roughly 200–250 words), surfaced in listings and dashboards.
+
+**Metadata only.** A description is not compiled into the face and does not change its causes.
+
+- Plain text. HTML is stored verbatim; if you render it, escape it yourself.
+- Server strips ASCII control characters and normalizes line endings.
+- Send `"description": ""` to clear it. Omit the field on PATCH to leave it unchanged.
+
+### `basic_facts`
+
+A key:value object for census-like facts: three **fields** and nine **keys**.
+
+**Fields** hold bare values, at most 100 characters:
+
+| field | holds | example |
+|-------|-------|---------|
+| `age` | their age | `"45"` |
+| `gender` | their gender: a gender, not pronouns | `"woman"` |
+| `location` | where they live now | `"Lisbon, Portugal"` |
+
+**Keys** hold one or two short sentences:
+
+| key | holds |
+|-----|-------|
+| `identity` | name, sexuality, pronouns, where they are from: anything about who they are that the fields do not hold |
+| `education` | schooling and study |
+| `occupation` | work and career |
+| `religion` | faith, or its absence |
+| `family` | parents, siblings, children |
+| `relationships` | partner, marriage, close ties |
+| `health` | lasting health conditions |
+| `languages` | languages spoken |
+| `background` | formative history no other key covers |
+
+Write a plain string; it comes back as an object:
+
+```json
+// PATCH /v1/faces/anna
+{"basic_facts": {"age": "45", "gender": "woman", "location": "Sydney, Australia",
+                 "identity": "Anna is from Vilnius and uses she/her."}}
+
+// GET /v1/faces/anna
+"basic_facts": {
+  "age":      {"value": "45", "status": "stated", "identification": "user-provided"},
+  "gender":   {"value": "woman", "status": "stated", "identification": "user-provided"},
+  "location": {"value": "Sydney, Australia", "status": "stated", "identification": "user-provided"},
+  "identity": {"value": "Anna is from Vilnius and uses she/her.", "status": "stated", "identification": "user-provided"}
+}
+```
+
+Put age, gender and location in their fields, not in `identity`. A sentence like
+`"identity": "Age: 45. Gender: woman."` is stored as written, but a form reading `age` will not
+find it there.
+
+**Any other key is refused.** A `422` names the unknown key and lists the valid ones, and nothing
+in that request is written, including the valid keys next to it. Keys such as
+`spouse_name` or `education_level` are refused: put the value in the matching key as a sentence
+(`relationships`, `education`).
+
+**Compiling can update them.** Decompiling a source leaves them as they are.
+
+**You are the authority.** A value you set replaces the current one; set `{"operation":
+"delete"}` on a key or field to clear it. A later compile can still refine it, so check them after
+a big upload.
+
+### `profile_addendum`
+
+A saved system prompt fragment stored on the face. It is added to the system prompt. Unlike `description` (which is human-facing metadata that never reaches the model), `profile_addendum` **is** sent to the model on each chat request.
+
+Use it for durable behavioral instructions: output format rules, guardrails, tone constraints, tool-use conventions.
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "support-bot",
+    "name": "Support Bot",
+    "profile_addendum": "Always answer in under 3 sentences. Never promise refunds.",
+    "default_model": "claude-sonnet-4-6"
+  }'
+```
+
+- **Maximum 100,000 characters.** Over the limit returns `422`. Formatting (blank lines, indentation) is preserved; ASCII control characters are stripped.
+- Applies on **all** inference endpoints: `/v1/chat/completions`, `/v1/messages`, and `/v1/responses`.
+- Send `"profile_addendum": ""` to clear it. Omit the field on PATCH to leave it unchanged.
+
+<Warning>
+  `profile_addendum` is sent to the answering model like a system prompt, so a determined
+  caller can get the model to reveal it. Don't put anything there you wouldn't want the face's
+  users to see.
+</Warning>
+- Returned on `GET /v1/faces/{alias}` **only for the face's owner**. It is never exposed on cross-user or [published](/guides/system-faces) face listings, nor echoed back in `/v1/responses` output.
+- For [synthetic faces](/guides/synthetic-faces): a persisted composite uses its own `profile_addendum`; a run-time composite borrows the **first operand's**.
+
+---
+
+## List supported attributes
+
+```bash
+curl https://api.faces.sh/v1/faces/attributes
+```
+
+Returns every `basic_facts` key and field. No authentication required. `format` is
+`"sentence"` for a key and `"value"` for a field; `core` marks the core attributes.
+
+```json
+{
+  "object": "list",
+  "data": [
+    {"key": "identity", "holds": "name, sexuality, where they are from (age, gender and where they live have fields of their own)", "core": true, "format": "sentence"},
+    {"key": "family", "holds": "parents, siblings, children", "core": false, "format": "sentence"},
+    ...
+    {"key": "age", "holds": "their age, as a bare value: \"45\"", "core": true, "format": "value"},
+    ...
+  ]
+}
+```
+
+---
+
+## List faces
+
+```bash
+curl https://api.faces.sh/v1/faces \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Each face item always includes `description`. By default, `tags`, `teams`, and the compiled-profile fields are returned as `null`; opt in with `?include=` (repeatable or comma-separated). Recognized values: `tags`, `teams`, `profile`, `sharing`, `avatar`, `usage`, `owner_avatar`, `owner_follow`.
+
+```bash
+# Tags + teams + the compiled-profile fields on every item
+curl "https://api.faces.sh/v1/faces?include=tags,teams,profile" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "alias": "alice",
+      "uid": "...",
+      "description": "Senior product designer based in Berlin.",
+      "tags": ["client:acme", "status:active"],
+      "teams": [
+        {"id": "...", "name": "Platform Engineering"}
+      ],
+      "default_model": "gpt-4o-mini",
+      "compiled": true,
+      "compile_tokens_synced": 8200,
+      "last_synced_at": "2026-04-22T16:24:05.932712",
+      "...": "..."
+    }
+  ]
+}
+```
+
+`?include=profile` populates the compiled-profile fields in one round-trip. The same field names appear on `GET /v1/faces/stats` for high-frequency polling, and on `GET /v1/faces/{alias}?include=profile` for single-face reads.
+
+| Field | Meaning |
+| --- | --- |
+| `compiled` | Whether the face has compiled content. **The field to read** to know whether a face has been compiled: a new face is `false`, whatever attributes it was created with. |
+| `compile_tokens_synced` | Tokens of source content currently compiled into the face. Decrements when sources are deleted. |
+| `last_synced_at` | ISO timestamp of the most recent compile sync, or `null` if the face has never been synced. |
+
+These are written after a compile finishes, so they can trail a source's own
+`synced` state by a minute or two. Read them again before treating a zero as final,
+and wait for them to settle before [regenerating an avatar](#regenerate-when-stale):
+one drawn in that window is marked stale as soon as they land.
+
+
+The list endpoint also accepts filter parameters that compose:
+
+- `?tag=`: repeatable. Multiple tags use **AND** (face must carry every listed tag). Values are lowercased before match.
+- `?team_id=`: repeatable. Multiple team_ids use **OR** (face must be a member of *any* listed team).
+- `?owner=`: repeatable. Multiple owners use **OR**. Case-insensitive. Filters by the account that owns the face.
+- `?following=true`: restrict to faces owned by accounts you follow.
+
+Tags and teams combine as `(tag1 AND tag2) ∩ (team1 OR team2)`:
+
+```bash
+# Faces tagged client:acme that are members of either team T1 or team T2
+curl "https://api.faces.sh/v1/faces?tag=client:acme&team_id=T1&team_id=T2" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`?team_id=` values that don't exist (or that match a team with no members) return zero matches without an error. Unknown values in `?include=` are silently ignored.
+
+**Filters narrow published faces too.** With `include_published=true`, `?team_id=`
+returns the published faces a team holds as well as your own. This applies only to
+teams you can read; any other team narrows the published rows to nothing. `?tag=` never matches someone else's face.
+
+### Filter by owner
+
+`?owner=` returns one account's faces.
+
+```bash
+# One creator
+curl "https://api.faces.sh/v1/faces?owner=head&include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Several, as a union
+curl "https://api.faces.sh/v1/faces?owner=head&owner=alice&include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+It ANDs with every other filter and keeps the paging guarantee.
+
+**It narrows what you can already see and never widens it.** Asking for another
+account's faces returns their published ones and nothing more, the same visibility
+`?include_published=true` gives you. So reading someone else's wall means passing
+both.
+
+An unknown username is an **empty list, not a `404`**: a creator with nothing
+published and a username that does not exist look the same from here. Use
+[`GET /v1/users/{username}`](/guides/people#read-one-account) when you need to tell
+them apart.
+
+`?following=true` is the same filter over everyone you follow; see
+[the following feed](/guides/people#the-following-feed).
+
+### Who owns it, and do you follow them
+
+Two per-row answers for walls that show a creator on every badge:
+
+```bash
+curl "https://api.faces.sh/v1/faces?include_published=true&include=owner_avatar,owner_follow" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+- `owner_avatar`: whether the owner's [`me` face](/guides/people#your-me-face)
+  has a **real** picture rather than the placeholder, so you fetch
+  `/v1/faces/{owned_by}:me/avatar?prefer=uploaded` only for the creators who
+  have one and draw the placeholder locally for the rest. Keep
+  `prefer=uploaded`: without it the route
+  serves the generated portrait or, if there is none, the placeholder.
+- `owner_followed`: whether **you** follow the owner. `null` on your own faces.
+
+One query per page, not one per row. Full detail in
+[People → Drawing a wall](/guides/people#drawing-a-wall).
+
+### Include published (system) faces
+
+By default the list returns only faces you own. Pass `?include_published=true` to also include faces published system-wide: the [system faces](/guides/system-faces) under the `head` account, and any face another account has chosen to publish. Each published item has `published: true` and an `owned_by` you combine into the chat handle `owned_by:alias` (e.g. `head:socrates`).
+
+To see faces made available to **you specifically** rather than to everybody, pass `?include_shared=true`. The two are independent and neither implies the other; see [Sharing Faces](/guides/sharing).
+
+```bash
+# Your own faces plus all published system faces
+curl "https://api.faces.sh/v1/faces?include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Only the system faces from the head account
+curl "https://api.faces.sh/v1/faces?include_published=true&from_users=head" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Two optional owner filters narrow the results by who owns each face. Like `?owner=`, they apply to every row, your own included, so `?from_users=head` returns head's faces and none of yours:
+
+- `?from_users=`: **allowlist**, repeatable or comma-separated. Only faces owned by these accounts are returned.
+- `?not_from_users=`: **blocklist**, repeatable or comma-separated. Faces owned by these accounts are excluded.
+
+`from_users` and `not_from_users` are mutually exclusive; passing both returns **`400`**. `?tag=` matches only your own faces; `?team_id=` narrows published faces too, as described above.
+
+---
+
+## Finding faces
+
+The list endpoint is also the discovery surface. `?include_published=true` adds
+every face published platform-wide, and these parameters make that set usable.
+
+### Search
+
+```bash
+curl "https://api.faces.sh/v1/faces?include_published=true&q=philosopher" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Matches **anywhere** in `alias`, `name`, `specialty` or `description`,
+case-insensitively: a phrase from the middle of a description works, not just
+the first word.
+
+With `sort=relevance`, the best matches come first.
+
+### Sort
+
+| `sort` | order |
+|--------|-------|
+| `created` | newest first, **the default** |
+| `alias` | alphabetical |
+| `relevance` | best match for `q`; a face *called* Socrates beats one that mentions him |
+| `usage` | most used first |
+
+`?order=asc|desc` reverses any of them. **Leave it out and nothing changes**: each
+field keeps the direction in the table, and those are not all the same direction.
+
+```bash
+# the three least-used faces of everything you can see
+curl "https://api.faces.sh/v1/faces?include_published=true&sort=usage&order=asc&limit=3" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+A reversed sort pages like any other, so this really is the least-used of everything,
+not the bottom of the first page reversed.
+
+Ties are broken on alias and then on the face's id, and **the tiebreak is never
+reversed**.
+
+`direction`, `sort_dir`, `sort_order`, `asc`, `desc` and `reverse` are not
+accepted: each returns a `422` naming `order`.
+
+### Usage
+
+```bash
+curl "https://api.faces.sh/v1/faces?include_published=true&sort=usage&include=usage"
+```
+
+```json
+"usage": { "users_30d": 412, "tokens_30d": 1884210, "tokens_total": 48221905 }
+```
+
+| field | window | meaning |
+|-------|--------|---------|
+| `users_30d` | trailing 30 days | distinct accounts that chatted with this face |
+| `tokens_30d` | trailing 30 days | input + output tokens |
+| `tokens_total` | **all time** | input + output tokens, ever |
+
+Your own use of your own face is not counted in any of the three.
+
+
+### Paging a feed
+
+`limit` and `cursor` work across owned, shared and published faces together.
+Keep going while `next_cursor` is present.
+
+```bash
+curl "https://api.faces.sh/v1/faces?include_published=true&limit=50&sort=usage&include=avatar,usage"
+```
+
+---
+
+## Faces you do not own
+
+A published face, or one shared with you, carries the same card fields as your
+own: `specialty`, `basic_facts`, `avatar_status`, `avatar_version`, `updated_at`,
+`usage`, and the compiled-profile fields under `?include=profile`.
+
+You can also **open it** (`GET /v1/faces/{alias}`) and **fetch its portrait**
+(`GET /v1/faces/{alias}/avatar`). Read access follows the list: if a face appears
+in your list, you can read it.
+
+What stays closed is everything else. Writing to the face, regenerating its
+avatar, and its source material (`compile/documents`, `compile/threads`) are the
+owner's alone, and `shared_with` is never populated on someone else's face.
+
+### Naming a face you do not own
+
+**An alias is unique per owner, not globally.** `alice` names one face on an
+account that owns an `alice` and a different one everywhere else, and `me`
+names a different face on every account there has ever been. So an alias on its
+own is not an address.
+
+Say the owner, either way: the handle in the path, or `?owner=`. They are one
+request:
+
+```bash
+curl "https://api.faces.sh/v1/faces/head:socrates/avatar?size=sm" \
+  -H "Authorization: Bearer YOUR_API_KEY" --output socrates.png
+
+# identical
+curl "https://api.faces.sh/v1/faces/socrates/avatar?size=sm&owner=head" \
+  -H "Authorization: Bearer YOUR_API_KEY" --output socrates.png
+```
+
+`<owner>:<alias>` is the same handle you chat with, print on a card and put on
+a roster. It works on all four read routes:
+
+| | |
+| --- | --- |
+| `GET /v1/faces/head:socrates` | the face |
+| `GET /v1/faces/head:socrates/avatar` | its picture |
+| `GET /v1/faces/head:socrates/avatars` | its avatar versions |
+| `GET /v1/faces/head:socrates/neighbors` | what it resembles |
+
+<Warning>
+**A bare alias means your own face first.** If you own a `socrates` and so does
+`head`, then `GET /v1/faces/socrates` is *yours*: a `200`, a real face, and
+not the one on the wall you clicked. There is no error to notice, so name the
+owner whenever you are acting on a row that came from somebody else's listing.
+
+If you own nothing by that name it falls through to the published and shared
+faces, oldest first.
+</Warning>
+
+Every one of these routes tells you which face answered:
+
+| route | where |
+| --- | --- |
+| `GET /v1/faces/{alias}` | `owned_by` |
+| `GET /v1/faces/{alias}/avatar` | `X-Avatar-Owner` response header |
+| `GET /v1/faces/{alias}/avatars` | `owned_by` |
+| `GET /v1/faces/{alias}/neighbors` | `owned_by`, beside the resolved `face` |
+
+Naming the owner **does not grant access**. A face that is neither published,
+nor shared with you, nor yours returns `404` however correctly you address it,
+`404` and never `403`.
+
+<Note>
+**Saying it twice and disagreeing is a `422`.**
+`/v1/faces/head:socrates?owner=alice` names two different faces. Send one.
+</Note>
+
+---
+
+## Get a face
+
+```bash
+curl https://api.faces.sh/v1/faces/FACE_ALIAS \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Works for **any face you can read**: your own, one shared with you, or a
+published one.
+
+`description`, `tags` and `compiled` are always populated. `teams` and the other compiled-profile fields (`compile_tokens_synced`, `last_synced_at`) are `null` unless requested via `?include=`:
+
+```bash
+curl "https://api.faces.sh/v1/faces/FACE_ALIAS?include=tags,teams,profile" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## Update a face
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "basic_facts": {"age": "31", "occupation": "Senior product designer."},
+    "default_model": "gpt-4o-mini"
+  }'
+```
+
+### `default_model`
+
+The face's preferred LLM, stored for clients to read. Chat does not apply it: a bare alias returns the face's [cause alone](/guides/chat#the-faces-cause), so send `alias@<default_model>` to answer on it. Accepts any model name from the [supported models list](/guides/chat#supported-models).
+
+PATCH also accepts `name`, `specialty`, `description`, `profile_addendum`, `formula`, `basic_facts` and `default_tools`. For the text fields (`specialty`, `description`, `profile_addendum`) an empty string clears the field and omitting it leaves it unchanged.
+
+Fields with their own route are refused with a `422` naming it: `published` (`/publish`), `shared_with` (`/share`), `read_only` (`/lock`) and `internal` (`/internal`). So are `alias` and `username`. Other unknown fields are ignored.
+
+---
+
+## Lock a face
+
+Locking a face freezes it. While locked, the face and everything it owns can still be **read and chatted with**, but **nothing can be changed**; every write is refused. Use it to protect a face you don't want edited.
+
+Toggle the lock with a single call (owner only):
+
+```bash
+# Lock
+curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS/lock \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"read_only": true}'
+
+# Unlock
+curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS/lock \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"read_only": false}'
+```
+
+```json
+{ "alias": "FACE_ALIAS", "read_only": true, "affected": ["FACE_ALIAS"] }
+```
+
+Every response for a face you own (single and list) includes a `read_only` boolean, defaulting to `false`. On a face you do not own it is `null`. `affected` lists the aliases whose state changed; everything belonging to the face freezes and thaws together.
+
+### What a lock blocks
+
+When a face is locked, any write to it or to anything it owns is refused with `409`:
+
+| Blocked while locked | Still allowed |
+|----------------------|---------------|
+| Editing the face (name, description, basic facts, model, and the rest) | Reading the face, its documents, and its threads |
+| Adding, editing, compiling, or deleting its documents and threads | Chatting with the face (inference) |
+| Uploading or importing new source material | Unlocking it |
+| Deleting the face itself | |
+
+To delete a locked face, unlock it first; unlocking is the one change a locked face always accepts.
+
+---
+
+## Delete a face
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/faces/FACE_ALIAS \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Deleting a face removes everything compiled from it, and it stops appearing in [centroid index](/concepts/centroids) results. Documents compiled exclusively for this face are also removed.
+
+---
+
+## Tags
+
+Lightweight lowercase labels attached directly to a face. Use them for quick grouping and filtered search, for example `client:acme`, `status:active`, or `release-candidate`.
+
+### Rules
+
+- Pattern: `^[a-z0-9][a-z0-9:\-_.]{0,63}$`
+- Lowercase only, max 64 chars, no spaces. An uppercase tag is rejected, not lowercased for you
+- Namespacing via `:` is encouraged (`client:acme`, `team:platform`)
+- Max 32 tags per face
+- Duplicates are collapsed silently
+- An invalid tag, or a write that would take the face past 32, returns **`400`** and changes nothing
+
+Only the face's owner can edit its tags.
+
+<Note>
+**Tags are a face-level concept.** In `/v1/iam/{id}/tags`, `{id}` is the UID or the alias of a face **you own**. Anything else (a user account, someone else's face, or an id that does not exist) returns **`404`** (*"No face you own found with id/alias …"*), never `403`.
+</Note>
+
+### Replace all tags
+
+```bash
+curl -X PUT https://api.faces.sh/v1/iam/FACE_UID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tags": ["client:acme", "status:active"]}'
+```
+
+### Add one or more tags (idempotent)
+
+```bash
+curl -X POST https://api.faces.sh/v1/iam/FACE_UID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tags": ["urgent"]}'
+```
+
+### Remove a single tag
+
+URL-encode the tag in the path (`:` becomes `%3A`):
+
+```bash
+curl -X DELETE "https://api.faces.sh/v1/iam/FACE_UID/tags/client%3Aacme" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### List tags on a face
+
+```bash
+curl https://api.faces.sh/v1/iam/FACE_UID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### List all tags across your faces
+
+For tag-picker overlays and similar UIs, fetch the union of every tag across the faces you own:
+
+```bash
+curl https://api.faces.sh/v1/me/tags \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{ "tags": ["client:acme", "release-candidate", "status:active", "urgent"] }
+```
+
+Sorted, deduped, lowercase.
+
+### Filter the face list by tags
+
+`GET /v1/faces` accepts a repeated `?tag=` query parameter. Multiple tags are combined with **AND**: only faces that carry every listed tag are returned. See [List faces](#list-faces) for composition with `?team_id=` and the `?include=` enrichment flag.
+
+```bash
+# All faces tagged client:acme
+curl "https://api.faces.sh/v1/faces?tag=client:acme" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# Intersection: both tags required
+curl "https://api.faces.sh/v1/faces?tag=client:acme&tag=urgent" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## Team membership
+
+Replace a face's team-membership list in one call. Idempotent: sending the same body twice is a no-op.
+
+```bash
+curl -X PUT https://api.faces.sh/v1/faces/FACE_ALIAS/teams \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"team_ids": ["TEAM_UID_1", "TEAM_UID_2"]}'
+```
+
+```json
+{
+  "teams": [
+    {"id": "TEAM_UID_1", "name": "Platform Engineering"},
+    {"id": "TEAM_UID_2", "name": "Acme Project"}
+  ]
+}
+```
+
+The body's `team_ids` becomes the face's complete membership list: extras get added, missing ones get removed. Send `{"team_ids": []}` to clear all memberships.
+
+### Authorization
+
+| Case | Status |
+| --- | --- |
+| Caller doesn't own the face | `404` |
+| Listed team_id doesn't exist | `400` |
+| Caller doesn't manage one of the listed teams | `403` |
+| Removing the face from a team the caller doesn't manage | allowed: the face owner has full control over their face's memberships |
+
+The asymmetry on removals mirrors `DELETE /v1/teams/{id}/members/{iam}`: a member's owner can take their face out of any team they're in, but adding to a team always requires the team's manager.
+
+---
+
+## Upload source texts
+
+Upload documents, transcripts, or threads to be compiled into the face.
+
+```bash
+# Text, PDF, or Word document
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=essay" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@interview.docx"
+
+# Pre-written transcript (plain text), "Speaker: message" per line
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=thread&face_speaker=Alice" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@transcript.txt"
+```
+
+`type`, `medium`, `perspective` and `face_speaker` are **query parameters**; only the
+file goes in the form. `type` defaults to `document`, so a `type` sent as a form field
+is not read and the upload is treated as a document.
+
+**`medium` is required for `type=document`**: say what the file is (`essay`,
+`conversation`, `email`, …). Without it the upload is refused with `422` and nothing is
+saved. It is refused, also with `422`, on `type=thread`, where each message carries its
+own. See [Declaring what a document is](/guides/compile#declaring-what-a-document-is-required-to-save)
+for the accepted values.
+
+### Supported file types
+
+| Type | Formats |
+|------|---------|
+| Document | `.txt`, `.md`, `.csv`, `.json`, `.jsonl`, `.xml`, `.html`, `.rst`, `.pdf`, `.docx` |
+| Thread | `.txt` (structured transcript) |
+| Audio/Video | `.mp3`, `.mp4`, `.wav`, `.m4a`, `.webm`, and more |
+
+Word (`.docx`) and PDF files have their text extracted for you; upload the file as
+it is, no conversion needed.
+
+Audio and video files are transcribed asynchronously: the upload returns **202** with `status: "transcribing"`. Poll the thread or document GET endpoint until `status` becomes `not_compiled` (ready to review) or `failed`. Text, PDF, and Word uploads return 200 synchronously.
+
+To get the raw transcript without creating a compile thread/document, use the `/transcribe` endpoint instead.
+
+#### Word documents
+
+Paragraph order is preserved, along with the blank lines between paragraphs and any
+tabs or line breaks inside one. Table cells are read in document order.
+
+Only document text is read. Images and text boxes are ignored, so a `.docx` that is
+just a scanned page arrives empty and is rejected with `422`.
+
+| If the file is | You get | What to do |
+|----------------|---------|------------|
+| a legacy `.doc` | `400` | Open it in Word or Pages and save as `.docx` |
+| password-protected or corrupt | `400` | Remove the password and upload again |
+| a `.docx` with no text in it | `422` | Check the file: images and text boxes are not read |
+
+A `400` means the file itself is wrong and a different file is needed. A `422` means
+the file was read fine and had nothing in it. Neither is worth retrying as-is.
+
+---
+
+## Import
+
+Import a YouTube video: the audio is fetched, transcribed, and stored as a document or thread. Returns **202** immediately; transcription runs in the background. Only YouTube URLs are accepted; any other URL returns **`400`**.
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces/alice/import \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID", "medium": "conversation"}'
+# Returns 202 with status "transcribing"
+# Poll GET /v1/compile/documents/{id} or /v1/compile/threads/{id} until ready
+```
+
+The body also takes `type` (`document`, the default, or `thread`), `perspective`
+(`third-person` by default, or `first-person`) and `face_speaker`. As with uploads,
+`medium` is required when `type` is `document` and refused when it is `thread`.
+
+---
+
+## Transcribe audio/video
+
+Transcribe without compiling. Accepts audio and video only. Returns the raw text and the speaker-labelled turns:
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces/alice/transcribe \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@podcast.mp3"
+```
+
+```json
+{
+  "text": "Welcome to the show. Thanks for having me.",
+  "duration_seconds": 8.1,
+  "has_speakers": true,
+  "speakers": ["A", "B"],
+  "utterances": [
+    { "speaker": "A", "text": "Welcome to the show." },
+    { "speaker": "B", "text": "Thanks for having me." }
+  ],
+  "amount_charged_usd": 0.0008
+}
+```
+
+Transcription is billed separately from compile quota. See [Billing guide](/guides/billing).
+
+---
+
+## Avatars
+
+An avatar is a face's picture, drawn from **what the face has compiled**. A
+grid of grey dots, head and shoulders, square to the camera on a plain white
+wall, in a 4:5 frame.
+
+Compile changes the face, that makes its avatar **stale**, and you
+regenerate it once when you are ready. There is no way to re-roll a face you
+simply do not like; compile more into it instead.
+
+If that is not the picture you want, you can
+[upload your own](#uploading-your-own-picture). It sits alongside the generated
+one rather than replacing it, and the client chooses between them per request.
+
+**Every face that exists returns an image.** Before a face has a generated or an
+uploaded picture, the avatar route serves the Faces logo through the same dot
+matrix (same grid, same three sizes, same `ETag`), so a client needs no branch
+and no local placeholder. `X-Avatar-Source` says which you got: `organic`,
+`uploaded` or `default`.
+
+`avatar_status` stays `"none"` while the placeholder is being served. Use the header to tell a real picture from the
+placeholder, and `avatar_status` to decide whether to offer to generate one. See
+[People → Nobody has a broken picture](/guides/people#nobody-has-a-broken-picture).
+
+### Knowing when it is out of date
+
+Three ways, depending on what you are rendering:
+
+| where | what you get |
+|-------|--------------|
+| `GET /v1/faces?include=avatar` | `avatar_status` per face: `none`, `current` or `stale` |
+| `GET /v1/faces/{alias}/avatar` | `X-Avatar-Stale: true\|false` response header |
+| `GET /v1/faces/{alias}/avatars` | `stale` on each version |
+
+`avatar_status` is opt-in. Ask for it when you are rendering a refresh affordance;
+leave it off when you are not.
+
+```json
+{ "alias": "alice", "avatar_status": "stale" }
+```
+
+### Regenerate when stale
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces/alice/avatar \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Takes about 10 seconds, so set your client timeout
+accordingly. Returns **409** if the avatar is already current:
+
+```json
+{ "detail": "The avatar for 'alice' is already up to date (version 2). It is regenerated when the face changes: compile more into the face, then ask again." }
+```
+
+A face with no avatar counts as stale, so the first one can always be made.
+
+### Batching a compile run
+
+Nothing regenerates on its own, so a run of twenty uploads costs **one** avatar,
+not twenty: compile everything, then regenerate once at the end. There is no
+batch API to call and no state to close; stale simply stays stale until you ask.
+
+### What a save returns
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces/alice/avatar \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "alias": "alice",
+  "version": 1,
+  "stale": false,
+  "etag": "d0a421e58c22...",
+  "rows": 160,
+  "cols": 128,
+  "bytes": 2283,
+  "seed": null,
+  "url": "/v1/faces/alice/avatar?v=1",
+  "current_url": "/v1/faces/alice/avatar",
+  "amount_charged_usd": 0.0105
+}
+```
+
+Every call **adds a version** (it never replaces what is there), and the newest
+is the face's current avatar.
+
+**Billing:** free accounts are charged per image at `amount_charged_usd`.
+Subscribers are not charged; `amount_charged_usd`
+comes back `0.0`.
+
+### Fetch one
+
+```bash
+# the face's current avatar
+curl https://api.faces.sh/v1/faces/alice/avatar -H "Authorization: Bearer KEY" -o alice.png
+
+# a specific version, as svg, at a chosen size
+curl "https://api.faces.sh/v1/faces/alice/avatar?v=1&format=svg&width=160" \
+  -H "Authorization: Bearer KEY" -o alice.svg
+```
+
+Returns the **image bytes** with the right `Content-Type`, not base64.
+
+| parameter | default | range |
+|-----------|---------|-------|
+| `v` | newest | any stored version (generated avatars only) |
+| `format` | `png` | `png` or `svg` |
+| `size` | `sm` | `sm` (32 dots across), `md` (64), `lg` (128) |
+| `width` | `size` × 9 | 32–2048 |
+| `prefer` | `organic` | `organic` or `uploaded`; see [Uploading your own picture](#uploading-your-own-picture) |
+
+### `size` and `width` are not the same thing
+
+`size` is **how many dots**. `width` is **how many pixels they are drawn across**.
+
+**Leave `width` alone unless you have a reason.** It defaults to nine pixels per
+dot. Below about that the picture pales: a `lg` grid
+squeezed into 320px comes out grey and washed. If you want a specific pixel size, pick the `size`
+whose default width is nearest it.
+
+| `size` | dots | default width |
+|--------|------|---------------|
+| `sm` | 32 × 40 | 288 px |
+| `md` | 64 × 80 | 576 px |
+| `lg` | 128 × 160 | 1152 px |
+
+Each response tells you what it actually drew, in `X-Avatar-Cols` and
+`X-Avatar-Width`.
+
+### Caching: the two URLs differ on purpose
+
+| URL | Cache-Control | use it for |
+|-----|---------------|------------|
+| `?v=N` | `public, max-age=31536000, immutable` | a version you already have; its bytes never change, so cache it forever |
+| no `v` | `no-cache, must-revalidate` | "whatever this face's avatar is now" |
+
+**You do not need a cache-busting query string.** The bare URL is stable and
+revalidates against an `ETag`, so send `If-None-Match` and you get a **304** with
+an empty body when nothing changed, and the new image when it did. Pin `?v=N` when
+you want a URL that can be cached indefinitely, for example in an email, or
+anywhere you cannot revalidate.
+
+The response also carries `X-Avatar-Version` and `X-Avatar-Source`, which says
+whether the bytes are the generated portrait or a picture the owner uploaded.
+
+| header | |
+|--------|---|
+| `X-Avatar-Source` | `organic`, `uploaded`, or `default` for the placeholder. **Always present, every value**; never infer it from a missing header |
+| `X-Avatar-Owner` | the account that owns the face whose picture this is; see [Naming a face you do not own](#naming-a-face-you-do-not-own) |
+| `X-Avatar-Version` | present for `organic` only; an upload has no versions |
+| `X-Avatar-Stale` | `false` for an upload, which cannot go out of date |
+| `X-Avatar-Cols` | dots actually drawn |
+| `X-Avatar-Width` | pixels actually drawn |
+
+### List the versions
+
+```bash
+curl https://api.faces.sh/v1/faces/alice/avatars -H "Authorization: Bearer KEY"
+```
+
+```json
+{
+  "alias": "alice",
+  "owned_by": "you",
+  "current_version": 3,
+  "versions": [
+    { "version": 3, "stale": false, "etag": "9f1c...", "rows": 160, "cols": 128, "bytes": 2283, "seed": null, "created_at": "2026-10-19T19:13:17.746711" },
+    { "version": 2, "stale": true, "etag": "4ab2...", "rows": 160, "cols": 128, "bytes": 2301, "seed": null, "created_at": "2026-10-12T08:41:02.118204" }
+  ]
+}
+```
+
+Metadata only. Fetch any of them at `?v=N`. A face with no generated avatar returns
+`"current_version": null` and an empty `versions` list.
+
+### Keeping versions
+
+A face keeps its most recent 50 versions.
+
+The generated image itself is **not** kept. It is turned into the grid and
+discarded in the same request, which is also true of an uploaded picture.
+
+### Uploading your own picture
+
+A face can also carry a picture its owner supplied, instead of a generated
+portrait.
+
+```bash
+curl -X PUT https://api.faces.sh/v1/faces/alice/avatar/upload \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@portrait.jpg"
+```
+
+```json
+{
+  "alias": "alice",
+  "source": "uploaded",
+  "cols": 128,
+  "rows": 160,
+  "source_width": 3024,
+  "source_height": 4032,
+  "replaced": false,
+  "url": "/v1/faces/alice/avatar?prefer=uploaded"
+}
+```
+
+`POST` and `PUT` both work and do the same thing. Owner only.
+
+**It does not replace the generated avatar.** The two are stored separately and
+both remain fetchable. Generating a new avatar does not disturb the upload either.
+
+**One upload per face.** There are no versions and no `?v=`: uploading again
+replaces what was there, and `replaced` tells you which happened.
+
+```bash
+# fetch the uploaded picture, falling back to the generated one
+curl "https://api.faces.sh/v1/faces/alice/avatar?prefer=uploaded&size=md"
+
+# remove it; the face shows its generated avatar again
+curl -X DELETE https://api.faces.sh/v1/faces/alice/avatar/upload
+```
+
+`prefer=uploaded` means **"the uploaded picture if there is one"**, not "the
+uploaded picture or a 404". Check `X-Avatar-Source` to see which you got. `DELETE` returns
+**204** whether or not there was anything to remove.
+
+#### What happens to the file
+
+It is decoded, **turned upright by its EXIF orientation**, centre-cropped to the
+4:5 avatar frame, reduced to the dot grid and **discarded before the request
+returns**. Nothing stores the image, the same as for a generated portrait.
+
+Cropping takes from the long side and never scales, so a landscape photograph
+loses its sides rather than being squashed. There is no face detection; the crop
+is centred.
+
+| | |
+|---|---|
+| accepted | JPEG, PNG, WebP, GIF, BMP |
+| not accepted | **HEIC**, an iPhone's default. Export as JPEG first |
+| maximum | 12 MB |
+
+| error | |
+|---|---|
+| **415** | the content type is not an image |
+| **413** | over 12 MB |
+| **422** | could not be read as an image |
+| **404** | not your face: uploads are owner-only, and a face you cannot write to answers as if it did not exist |
+
+### Errors
+
+| | |
+|---|---|
+| **404** on GET | no such face, or `?v=N` names a version that does not exist. A face with no avatar is **not** a 404: it serves the placeholder |
+| **422** on GET | `?v=N` together with `prefer=uploaded`; an upload has no versions, so send one or the other |
+| **422** on POST | the face has nothing compiled, so there is nothing to draw. Refused before anything is charged: `{"detail": "Face 'alice' has nothing compiled, so there is nothing to draw. Compile something into it first."}` |
+| **502** / **503** on POST | the picture could not be made just now; retry |
+| **409** on POST | the avatar is already current, or the face is locked (read-only) |

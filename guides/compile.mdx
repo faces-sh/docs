@@ -1,0 +1,664 @@
+---
+title: Compile
+description: Turn source texts into a compiled face.
+---
+
+# Compile
+
+Compilation turns uploaded source texts (documents, transcripts, conversation threads) into a face.
+
+---
+
+## Document types
+
+### Documents
+
+A **document** is any source text that describes or characterizes the face from the outside: an interview, biography, essay, article, journal entry, or PDF.
+
+### Threads
+
+A **thread** is a conversation transcript: a direct record of how the face expresses itself. A thread has no medium until you [set one](#correcting-what-a-thread-is), for example `conversation`; until then it does not count toward a [style](/guides/style).
+
+---
+
+## Compiling a document
+
+Compile a document with a single call to `/make`. It returns `202` immediately and compiles in the background:
+
+```bash
+curl -X POST https://api.faces.sh/v1/compile/documents/DOC_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"document_id": "98f4d26d-…", "alias": "alice", "label": "Journal", "status": "queued", "progress": 0.0,
+ "starts_at": null, "rush": false}
+```
+
+A second `/make` on a source already compiled at its current revision is a `409`, and
+nothing is charged:
+
+```json
+{"detail": {"error_code": "already_compiled",
+            "message": "this document is already compiled at its current revision, so compiling it again would only charge for the same result. Nothing was charged. Edit it, or POST /reset on it, to compile it again."}}
+```
+
+To compile it again, edit the source or `POST …/reset` it.
+
+### When a compile starts
+
+A compile starts at once, or later, at a scheduled start. Both `/make` responses and every
+compile status (the full `GET`, `?status_only=true`, the status lists and the thread
+responses) say which:
+
+| Field | Meaning |
+|-------|---------|
+| `starts_at` | The scheduled start, or once the compile has started, when it started. ISO 8601 UTC. `null` when the compile starts at once. |
+| `rush` | `true` when the compile was queued as a rush. |
+
+To start now rather than at the scheduled start, send `{"rush": true}`:
+
+```bash
+curl -X POST https://api.faces.sh/v1/compile/documents/DOC_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"rush": true}'
+```
+
+A rush is billed at the rush rate (see [What a compile costs](#what-a-compile-costs)). When
+the compile would start at once anyway, a rush is accepted, billed at the standard rate, and
+answered `rush: false`. Threads take the same body at `POST /v1/compile/threads/{id}/make`.
+
+### Declaring what a document is: required to save
+
+`medium` tells us what sort of writing the document contains, and a document **can't be
+saved without one**:
+
+```json
+{
+  "alias": "alice",
+  "label": "conference-talk",
+  "content": "...",
+  "medium": "conversation"
+}
+```
+
+We will not infer one from the text.
+
+It is required on **save**: `POST /v1/compile/documents`, `POST /v1/faces/{alias}/upload`
+with `type=document`, and `POST /v1/faces/{alias}/import` with `type=document` all answer
+`422` without one, naming the accepted values:
+
+```json
+{
+  "detail": "medium is required: say what this document is, one of: academic paper, blog post, conversation, email, essay, lecture, legal document, other, social post, text message, thread reply"
+}
+```
+
+An edit can change a document's medium but not clear it: `PATCH` with `"medium": null` on a
+document that has one is a `422`.
+
+**Eleven values, spelled exactly.** The same set the chat API uses:
+
+```
+email            text message     social post      essay
+academic paper   blog post        legal document   thread reply
+conversation     lecture          other
+```
+
+Nothing else is accepted. There are no synonyms: `transcript`, `keynote`, `sms`,
+`article` and `prose` are each a `422` naming all eleven, and the message tells you
+which word to send.
+
+```json
+{
+  "detail": "body → medium: Value error, unknown medium 'transcript'; expected one of: academic paper, blog post, conversation, email, essay, lecture, legal document, other, social post, text message, thread reply"
+}
+```
+
+Only case and surrounding whitespace are forgiven: `"  ESSAY "` is `essay`.
+
+#### `other`: writing that is not one of the named forms
+
+Ten of the eleven values are a specific form. `other` is for the case none of them
+fit: a few paragraphs someone wrote that are not an email, an essay, a lecture or a
+legal document. It is a declaration by the author, and it compiles.
+
+**What a source filed this way is read as:** prose with no form-specific
+conventions assumed. Its style is kept under `other` like any other medium, and
+applied only to requests that are also `other`.
+
+<Note>
+  **`other` is never chosen for you.** To reach an `other` style, **declare
+  `medium: "other"` on the request**.
+</Note>
+
+`other` is not a home for forms this product does not yet name. If you need one of those, ask for
+it rather than working around it.
+
+`medium` works on file uploads too:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=essay" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@essay.txt"
+```
+
+It applies to `type=document` only. The structured types (`thread`, `thread_json`,
+`email_jsonl`) carry a kind per message derived from the file itself; sending `medium` with those returns `422`.
+
+`medium` can be changed later with `PATCH /v1/compile/documents/{id}`, which applies
+from the next compile.
+
+### Correcting what a thread is
+
+A thread created from a bulk upload carries the medium its messages declared. When
+that is wrong (a talk that arrived looking like a conversation, an SMS export), set
+it on the thread:
+
+```bash
+curl -X PATCH "https://api.faces.sh/v1/compile/threads/THREAD_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"medium": "lecture"}'
+```
+
+A partial update: `{"label": …}`, `{"medium": …}` or both are each valid, and
+`{"medium": null}` clears the correction. The thread list, the thread GET and a
+messages `PATCH` each carry both values:
+
+| field | meaning |
+| --- | --- |
+| `corpus_medium` | what the material declared when it arrived. Read-only. |
+| `medium` | your correction, or `null`. |
+
+### Polling for progress
+
+Poll `GET /v1/compile/documents/DOC_ID` every 2-3 seconds:
+
+```bash
+curl https://api.faces.sh/v1/compile/documents/DOC_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"document_id": "98f4d26d-…", "alias": "alice", "status": "compiling", "progress": 0.71,
+ "finishing": true, "stall_reason": null, "error_code": null, "synced": false}
+```
+
+### `status`
+
+| `status` | Meaning |
+|----------|---------|
+| `not_compiled` | Saved, not compiled yet (or reset). |
+| `transcribing` | An audio or video upload is being transcribed. |
+| `queued` | Waiting behind the face's other sources, or about to resume on its own. Show it as queued. |
+| `compiling` | Compiling. |
+| `compiled` | Done. Stop polling. The face is ready to use; for a document, its writing style catches up within about a minute. |
+| `paused` | Stopped at your request. `/make` resumes it. |
+| `failed` | Final. Stop polling. `error_code` or `stall_reason` says why. |
+
+Treat a value you do not recognise as `compiling`.
+
+`progress` runs from 0 to 1. It is `1` only when `status` is `compiled`, and `0` while
+`queued` or `not_compiled`.
+
+A temporary failure does not end in `failed`: the compile goes back to `queued` and
+resumes on its own, keeping what it has done. You do not need to call `/make` again.
+
+### `finishing`: the one field to branch on
+
+| `finishing` | Meaning | What the client should do |
+|-------------|---------|---------------------------|
+| `true` | Still in hand: compiling, or queued to resume on its own | Show progress. **Offer no action.** |
+| `false` | Compiled, failed, paused, or never compiled | Read `status` to tell them apart |
+
+**Branch on `finishing` first**, and read `status` only when it is `false`.
+
+`finishing` is reported on every source-state response: the document and thread GET
+endpoints, the thread list, and both upload responses.
+
+
+### Progress fields
+
+| Field | Description |
+|-------|-------------|
+| `status` | See above. |
+| `progress` | 0 to 1. |
+| `finishing` | `true` while the compile is still in hand. See above. |
+| `stall_reason` | Why a compile stopped, in plain words, when it did. `null` while healthy. |
+| `error_code` | Why a `failed` compile is final: `nothing_extracted` when the source gave nothing to compile. Add more of the author's own writing, then compile again. `null` otherwise. |
+
+Your compile allowance or credits are charged when the compile completes.
+
+### Can this be compiled at all?
+
+Two fields on every source row, detail, upload and import response say whether
+`POST …/make` would be accepted, and which rule refuses it if not. An upload or import reports
+the same values a later `?status_only=true` read does. Draw your compile control from these
+rather than from a count of your own:
+
+| Field | |
+|---|---|
+| `compilable` | `true` when `make` would be accepted |
+| `compile_blocked_reason` | a short stable code when it would not, else `null` |
+
+A reason is present exactly when `compilable` is `false`, so `compilable` alone is
+enough to decide whether to offer the action; the code is for the sentence you write.
+
+While an audio or video upload is still transcribing, it reads as not yet compilable:
+`no_user_messages` for a thread, `empty` for a document.
+
+| `compile_blocked_reason` | What it means |
+|---|---|
+| `empty` | a document with no text to compile from |
+| `too_short` | a document under `compile_min_words` words. Shorter sources compile to nothing, so it is refused up front. Add more of the author's writing. |
+| `no_user_messages` | a thread holding nothing the subject wrote. A fresh interview is this: it carries the interviewer's opening question and no answer. It becomes compilable the moment the first user message arrives. |
+| `corpus_thread` | a bulk corpus upload (`thread_json`, `email_jsonl`). That is material for [building a style](/guides/style) rather than a thread to compile; upload the same material as `type=thread` to compile it. |
+
+`make` enforces exactly these, and refuses with a `400` carrying the same code in
+`detail.error_code`.
+
+Every document response carries `word_count` and `compile_min_words` (currently 50;
+`null` when no minimum applies), and a `too_short` refusal carries both next to
+`error_code`, so a client can show "38 / 50 words". More codes
+may be added, so **treat a code you do not recognise as "cannot be compiled"**.
+
+<Note>
+  **There is no minimum number of messages or replies.** A thread with one user
+  message compiles. If your product wants a higher bar before offering the control,
+  that is yours to set.
+</Note>
+
+**What `compilable` is not.** It does not say a compile would *change* anything:
+that is `synced` and the revision pair below, and a source whose text was rewritten is
+`compilable: true` and out of date.
+Nor does it cover transient refusals: a compile already running, a locked face, or an
+empty credit balance are refused by other means (`409`, `409`, `402`) and are not
+properties of the source. [`finishing`](#finishing-the-one-field-to-branch-on) already answers
+the first.
+
+### Is what the face knows still current?
+
+`synced` says a compile ran. It does not say *what it ran on*, so these four fields
+answer "I edited this, does the face know?" with no state kept on your side.
+
+| Field | Documents | Threads |
+|-------|-----------|---------|
+| `version` | current revision | current revision |
+| `synced_version` | the revision the compile read | the revision the compile read |
+| `synced_at` | when that compile ran | when that compile ran |
+| `timestamp` (per message) |  | when that message was last written |
+
+**Source-level:** `synced_version < version` means the text has moved since the
+compile, and the gap says by how many revisions.
+
+**Message-level, threads only:** a message whose `timestamp` is later than the
+thread's `synced_at` is one the compile never read:
+
+```json
+{
+  "version": 8,
+  "synced_version": 7,
+  "synced_at": "2026-10-09T14:51:48Z",
+  "messages": [
+    { "role": "user", "content": "…", "timestamp": "2026-10-09T14:49:02Z" },
+    { "role": "user", "content": "…", "timestamp": "2026-10-09T14:58:33Z" }
+  ]
+}
+```
+
+The second message was written after the compile; the first was not.
+
+**What moves a thread's `version`:** editing a message, adding or removing one, and
+**reordering** them.
+What does not: renaming the thread, changing its medium, or sending the messages back
+unchanged. An unchanged write is not a revision and moves no `timestamp`.
+
+The list is written back with `PATCH /v1/compile/threads/{id}/messages` and
+`{"messages": [...]}`. Each message takes `role`, `content` and an optional `name`,
+the speaker label. A message carrying `from` is refused with `422`:
+`` `from` is no longer accepted; use `name` for the speaker label. ``
+
+<Warning>
+  A reorder moves `version` but restamps no message. If you render per-message staleness, fall back to the source-level
+  comparison.
+</Warning>
+
+### Controlling compilation
+
+| Action | Endpoint | Effect |
+|--------|----------|--------|
+| Pause | `POST /compile/threads/{id}/pause` | Ask the compile to stop. Progress preserved. Resume with `/make`. |
+| Reset | `POST /compile/threads/{id}/reset` | Stop the compile and wipe its progress. Source data preserved. Fresh `/make` starts from the beginning. |
+| Delete | `DELETE /compile/threads/{id}` | Remove thread entirely. |
+
+Pause and reset work on documents too (`/compile/documents/{id}/pause` and `/reset`).
+
+#### Pause is a request, not an immediate stop
+
+A pause can take a few seconds. Poll
+until `status` is `paused`:
+
+```bash
+curl "https://api.faces.sh/v1/compile/documents/DOC_ID?status_only=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+A later `/make` carries on from where it stopped, so work already done is not paid for
+twice. Reset stops a running compile the same way, and clears its progress.
+
+### Lightweight polling
+
+`?status_only=true` returns the polling fields without the document's content or the
+thread's messages:
+
+```bash
+curl "https://api.faces.sh/v1/compile/threads/THREAD_ID?status_only=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"id": "f49a5009-…", "alias": "alice", "label": "Interview", "status": "compiling", "progress": 0.86,
+ "finishing": true, "stall_reason": null, "error_code": null,
+ "synced": false, "version": 4,
+ "synced_version": null, "synced_at": null, "compilable": true, "compile_blocked_reason": null,
+ "starts_at": null, "rush": false}
+```
+
+It carries `synced`, `version`, `synced_version`, `synced_at`, `compilable`,
+`compile_blocked_reason`, `starts_at` and `rush`, the same values as the full GET, so you
+never need the full GET to learn what was compiled. Poll this; fetch the full GET for the body.
+
+### Every source on a face
+
+To read the state of all of a face's sources in one call, use the status lists. Each
+returns one status object, as above, per source:
+
+```bash
+curl "https://api.faces.sh/v1/compile/documents/status?alias=FACE_ALIAS" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+curl "https://api.faces.sh/v1/compile/threads/status?alias=FACE_ALIAS" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+The thread route takes `include_uploads` as the thread list does. The full lists
+(`GET /v1/compile/documents`, `GET /v1/compile/threads`) refuse `status_only`, `include`
+and `fields` with a `422` naming the status route.
+
+### Is anything compiling on this account?
+
+To check every face at once, for a page-load indicator or a badge, use the
+activity route instead of the two lists:
+
+```bash
+curl https://api.faces.sh/v1/compile/activity \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"object": "compile_activity", "faces_active": 1, "sources_active": 2, "progress": 0.43, "measurable": true, "paused": [],
+ "faces": [{"alias": "alice", "sources_active": 2, "progress": 0.43, "measurable": true,
+   "sources": [{"id": "6f0c…", "kind": "document", "label": "Letters", "status": "compiling", "progress": 0.43, "stall_reason": null},
+               {"id": "77b2…", "kind": "document", "label": "Diary", "status": "queued", "progress": 0.0, "stall_reason": null}]}]}
+```
+
+An idle account gets empty lists and zeroes back.
+
+- **`progress` can be `null`** for a face, or for the account, when it cannot be
+  measured; `measurable` says so. Then show an indicator that claims no fraction.
+- **Paused sources are in `paused`**, one entry each with `alias`, `id`, `kind`,
+  `label`, `status: "paused"`, `progress` and `stall_reason`. They are in no count and
+  no `progress`. Resume one with `POST …/make`.
+- **`faces` lists only faces with work in progress**, not the account's faces.
+
+A source is listed under `faces` exactly when its [`finishing`](#finishing-the-one-field-to-branch-on)
+is `true`.
+
+---
+
+## Listing documents
+
+```bash
+curl "https://api.faces.sh/v1/compile/documents?alias=FACE_ALIAS" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+---
+
+## Deleting a document
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/compile/documents/DOC_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Deleting a compiled document removes what it contributed to the face.
+
+---
+
+## Read-only documents and threads
+
+Some documents and threads are **read-only**. A read-only item is frozen: you can read it, but its contents can't be changed.
+
+Every document and thread response includes a `read_only` field. It defaults to `false`; when it's `true`, the item is locked:
+
+```json
+{
+  "document_id": "abc123",
+  "alias": "alice",
+  "label": "Sent emails",
+  "read_only": true
+}
+```
+
+| Action on a locked item | Result |
+|-------------------------|--------|
+| Read it (`GET`, list) | Works: the response shows `read_only: true` |
+| Change its content, label, or messages | Refused with `409` |
+| Delete it | Still allowed |
+
+Attempting to edit a locked item returns `409` with a message explaining why:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/compile/documents/DOC_ID \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "new text"}'
+```
+
+```json
+{ "detail": "This document is read-only and cannot be edited. (document DOC_ID)" }
+```
+
+A locked thread behaves the same way. Read the `read_only` field before offering edit actions in a UI; deletion stays available even when an item is locked.
+
+---
+
+## Uploading threads
+
+A **thread** is a multi-speaker conversation transcript. Upload a text file with `Speaker Name: message` format:
+
+```
+Interviewer: Tell me about yourself.
+Ada: I'm a designer in Lisbon.
+Interviewer: What drives your work?
+Ada: Making things people can repair themselves.
+```
+
+Upload with `type=thread` and `face_speaker` to specify which speaker is the face:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/FACE_ALIAS/upload?type=thread&face_speaker=Ada" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@interview.txt"
+```
+
+The `face_speaker` parameter maps that speaker to `role=user` (the face's voice). All other speakers become `role=assistant`. If omitted, the first speaker is assumed to be the face.
+
+Once uploaded, compile the thread with `/make` (fire-and-forget, the same as a document):
+
+```bash
+curl -X POST https://api.faces.sh/v1/compile/threads/THREAD_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"thread_id": "f49a5009-…", "status": "queued", "progress": 0.0}
+```
+
+Poll it like a document: the same `status`, `progress` and `finishing`.
+
+### Audio/video threads
+
+Audio and video files uploaded with `type=thread` are transcribed automatically with speaker diarization. The upload returns **202 immediately**; transcription runs in the background.
+
+Poll `GET /v1/compile/threads/THREAD_ID` until `status` changes from `transcribing` to `not_compiled` (ready to review). Speakers are labeled automatically (Speaker A, Speaker B, etc.). Use `face_speaker=A` to map the correct speaker.
+
+```bash
+# Upload audio/video: returns 202 with status "transcribing"
+curl -X POST "https://api.faces.sh/v1/faces/FACE_ALIAS/upload?type=thread&face_speaker=A" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@interview.mp3"
+
+# Poll until transcription completes
+curl https://api.faces.sh/v1/compile/threads/THREAD_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+# status: "transcribing" → "not_compiled" (ready) or "failed"
+
+# Review the transcript, then compile
+curl -X POST https://api.faces.sh/v1/compile/threads/THREAD_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Text file uploads (`.txt`) are processed synchronously and return 200 with the full transcript immediately.
+
+---
+
+## Interview threads
+
+An **interview thread** is a live conversation where an AI interviewer asks questions, and the answers are compiled into the face. Threads are created and advanced via the compile threads API:
+
+```bash
+# Start a new interview thread
+curl -X POST https://api.faces.sh/v1/compile/threads \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"alias": "FACE_ALIAS", "label": "My Interview"}'
+
+# Send a message
+curl -X POST https://api.faces.sh/v1/compile/threads/THREAD_ID/messages \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "I always test my software thoroughly before shipping."}'
+
+# Compile into the face: /make, the same as an uploaded thread
+curl -X POST https://api.faces.sh/v1/compile/threads/THREAD_ID/make \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`/make` is the only compile call, for interview threads too. Both `POST` calls return
+the thread's compile `status` and `progress`, as its GET does.
+
+### Slow calls are held open
+
+Starting a thread, sending a message and `POST …/reset` (documents and threads) can be
+slow. Past about 40 seconds, the response is a `200` with the header `X-Faces-Held: 1`,
+and whitespace before the JSON. Parse the body as usual. A failure after that point comes
+back inside the `200` as an error body, with `detail` and an OpenAI-style `error` object
+carrying the real `status`. When `X-Faces-Held` is set, check for `error` first. Set a
+client timeout of at least 60 seconds.
+
+### Interviewer billing source
+
+Interview threads use an LLM to generate interviewer questions. How this is paid for depends on your plan and can be controlled per-request:
+
+| Source | Who pays | When used |
+|--------|----------|-----------|
+| `oauth` | Your ChatGPT subscription (free) | Connect or Pro plan with a linked OpenAI account |
+| `credits` | API credit balance | Any plan with positive balance |
+
+**Default behavior (auto):** `oauth` when the account has a linked OpenAI account, otherwise `credits`.
+
+**Explicit override:** Pass `interviewer_billing_source` in the request body to force a specific source:
+
+```bash
+curl -X POST https://api.faces.sh/v1/compile/threads \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"alias": "FACE_ALIAS", "label": "Interview", "interviewer_billing_source": "credits"}'
+```
+
+Any other value returns `400`. `oauth` without a linked account also returns `400`.
+
+The response includes `interviewer_billing_source` (which path was used) and `tokens_charged` (compile tokens consumed for this message).
+
+If no payment source is available, the endpoint returns `402` with a structured error indicating whether the user needs to connect their OpenAI account, add credits, or both.
+
+---
+
+## Compile allowance
+
+Connect and Pro include a monthly compile allowance, counted in source tokens (see
+[What a compile costs](#what-a-compile-costs) below). It is shared across all faces in
+your account. Read what is left from your subscription:
+
+```bash
+curl https://api.faces.sh/v1/billing/subscription \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`allowances.compile_month` carries `limit`, `used`, `remaining` and `resets_at`.
+`allowances` is `null` on the Free plan, which has no allowance and pays per token. See
+[Allowances](/guides/billing#allowances).
+
+Compile, upload and thread responses carry the same allowance as `tokens_used` and
+`tokens_limit`: `tokens_used` is the source tokens compiled in the current subscription
+window, and `tokens_limit` is the plan's monthly compile allowance
+(`allowances.compile_month.limit`). `tokens_limit` is `0` on a plan with no allowance (Free
+pays per token) and `-1` when unlimited.
+
+---
+
+## What a compile costs
+
+A compile is counted by its **source tokens**, each time it runs (a recompile after an
+edit counts again):
+
+- **Connect and Pro:** covered by the monthly compile allowance (250k / 1M source tokens).
+  Past it, `api_fallback` on pays from credits at $25 per million source tokens;
+  `api_fallback` off refuses the compile with `429` before it starts. The message names the
+  reset date.
+- **Free:** $25 per million source tokens, from credits. With no credit, `402`.
+- **Rush:** paid as you go (Free, or past the allowance with `api_fallback` on), a
+  [rush](#when-a-compile-starts) is billed at the rush rate instead of the standard one. Covered by the allowance, the allowance covers the standard
+  rate and the rush adds the difference, paid from credit. Without credit enough for it,
+  `/make` answers `402` before anything is queued, with the amount in `rush_premium_usd`.
+  Compiling without `rush` is never refused for this.
+
+```json
+{"detail": {"error_code": "insufficient_credit_for_rush", "rush_premium_usd": 0.42,
+            "message": "A rush compile starts now at the rush rate. Your plan covers this compile at the standard rate; the rush adds $0.42, paid from credit, and your balance is $0.10. Top up, or compile without rush to start at the scheduled time at no extra cost."}}
+```
+
+Both rates are published: `compile.usd_per_million_source_tokens` and
+`compile.rush_usd_per_million_source_tokens` in [`GET /v1/rates`](/guides/billing#current-rates),
+and `input_cost_per_million_tokens` and `rush_input_cost_per_million_tokens` on
+`faces-compile-latest` in [`GET /v1/models?kind=compile`](/guides/chat#supported-models).
+
+See [Allowances](/guides/billing#allowances).
+
+---
+
+## Uploading large files
+
+Text, PDF, and Word (`.docx`) files can be uploaded directly; their text is read out for you. Audio and video files are transcribed before compilation; the transcription counts against your credit balance, not your compile allowance.
+
+For batch imports, consider using the [import endpoint](/guides/faces#import) or the upload endpoint in a loop.
+
+---
+
+## Compile vs. chat tokens
+
+The compile allowance counts the source tokens each compile reads. Chat token usage is separate and billed against your credit balance based on the LLM model used for each conversation.

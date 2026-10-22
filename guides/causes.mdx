@@ -1,0 +1,96 @@
+---
+title: Causes
+description: The face's cause alone, with no answering model.
+---
+
+# Causes
+
+`POST /v1/causes` returns a face's **cause** alone, in Faces' own format: the principal *why* behind the
+face's response in this context. It is the same text chat returns in `message.cause` and the
+[decision endpoints](/guides/decisions) return in `cause` and `causes`. No model answers, so
+you pay only the [cause rate](/guides/billing#current-rates): per million input tokens, plus a
+fixed number of tokens per cause. The price is listed as `faces-causes-latest` in
+[`GET /v1/models?kind=cause`](/guides/chat#supported-models). `model` is still the face, not
+that id.
+
+Every other endpoint is a compatible endpoint, in another API's own format. Address it as
+`face@model`, and the face's cause guides that model's answer. Address a face alone, and you
+get just the cause, in that API's own format.
+
+Use it to steer your own model or pipeline with a face's cause.
+To bring another face's view into a prompt, get its cause from `POST /v1/causes` and include it in your own messages.
+
+`model` is the face alone (`alice`, or `owner:alias` for a face shared with you), or a [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) such as `(alice | bob)`. `alice@<model>`
+is a `400`: to have a model answer, use [chat](/guides/chat) or [decisions](/guides/decisions).
+
+## A chat turn
+
+Send the body you'd send to `/v1/chat/completions`. The cause is for the last message.
+
+```bash
+curl -X POST https://api.faces.sh/v1/causes \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "alice", "messages": [{"role": "user", "content": "Should I take the offer?"}]}'
+```
+
+```json
+{"object": "cause", "model": "alice", "cause": "…", "usage": {"input_tokens": 1234, "output_tokens": 210}}
+```
+
+Send earlier causes back in the transcript, as on chat.
+The cause reads the last message and up to the four turns before it, within 30,000 tokens: see
+[what a cause reads](/guides/chat#limits-on-a-face).
+To group turns and compact them, add `session` and `compaction`: see [Sessions](/guides/sessions).
+
+## A situation
+
+Send `state` as on [decisions](/guides/decisions): a string, an object or an array.
+
+```json
+{"model": "alice", "state": "A fund offers $80k to change a finding before it is published."}
+```
+
+Returns `cause`, as above.
+
+## One cause per question
+
+Add `questions`, in System One's format, exactly as on [`/v1/systemone`](/guides/decisions#system-one). Each question gets its own cause:
+
+```json
+{"model": "alice",
+ "state": "A fund offers $80k to change a finding before it is published.",
+ "questions": {"take": {"type": "noul", "instructions": "Does the speaker take the money?"},
+               "tell": {"type": "choice", "instructions": "Who does the speaker tell?",
+                        "criteria": {"editor": null, "nobody": null}}}}
+```
+
+```json
+{"object": "cause", "model": "alice", "cause": "…", "causes": {"take": "…", "tell": "…"},
+ "usage": {"input_tokens": 2468, "output_tokens": 420}}
+```
+
+`cause` is the first question's, the same text as its entry in `causes`.
+
+## Rules
+
+- Send `messages` or `state`, not both, and not neither (`422`). `questions` goes only with
+  `state` (`422`).
+- Not streamed: `stream: true` is a `422`.
+- The same limits as chat (for `messages`) and decisions (for `state`), and at most 10
+  questions. Over a limit is a `422` naming the size, before any work. See
+  [GET /v1/rates](/guides/billing#current-rates) `limits`.
+- A face with nothing compiled has no cause to give: `409`, and nothing is charged. A name that
+  is not one of your faces, or one shared with you, is a `404`.
+- Charged per cause. If one question fails, the causes already returned are charged, as on decisions.
+- Counts against your plan's per-minute request limit (`limits.requests_per_minute` in
+  [`GET /v1/rates`](/guides/billing#current-rates)). Over it is a `429` with `Retry-After`; see
+  [Errors](/errors).
+
+## Speed
+
+A cause takes about 10 seconds. **Set your client timeout to at least 60 seconds.** Past about
+40 seconds the response is held open: a `200` with the header `X-Faces-Held: 1`, and whitespace
+before the JSON. A failure after that point comes back inside the `200` as an error body, with
+`detail` and OpenAI's `error` object carrying the real `status`. When `X-Faces-Held` is set,
+check for `error` before reading `cause`.

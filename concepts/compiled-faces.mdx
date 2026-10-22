@@ -1,0 +1,41 @@
+---
+title: Compiled Faces
+description: What a compiled face is, and what makes a good source text.
+---
+
+# Compiled Faces
+
+A face is a causal model compiled from source texts. Prompted, it returns a
+[cause](/guides/causes): the principal *why* behind its response in that context.
+
+---
+
+## What compiling does
+
+Each document or thread you compile becomes part of the face. Delete it, and what it
+contributed goes with it.
+
+A face's cost per request does not depend on how much you have compiled into it.
+
+---
+
+## Why faces compose
+
+Compiled faces can be combined with boolean operators (union, intersection,
+difference), and the result is still a usable face. See
+[synthetic faces](/guides/synthetic-faces).
+
+---
+
+## What makes a good source text
+
+- **First-person material is strongest.** Interviews, journals, essays and sent
+  messages carry voice as well as content.
+- **Third-person material works** for biography and description; set
+  `perspective=third-person` so it is read as being *about* the person rather than
+  *by* them.
+- **Volume helps, but distinctiveness helps more.** Ten pages where someone argues a
+  position beat a hundred pages of logistics.
+- **Declare what a document is** when you upload it, with `medium`. It is required: a
+  document cannot be saved without one. See
+  [Compile](/guides/compile#declaring-what-a-document-is-required-to-save).

@@ -1,0 +1,261 @@
+---
+title: Teams
+description: Group your faces into named teams.
+---
+
+# Teams
+
+A **team** is a named group of faces. Use teams to organize faces by project, client, department, or any other structure that fits your workflow.
+
+The caller who creates a team automatically becomes its **manager**: the only account that can rename it, add or remove members, or delete it. A team can hold any face the manager can reach: their own, and faces that are published or shared with them.
+
+<Note>
+All team endpoints require `Authorization: Bearer YOUR_API_KEY`.
+</Note>
+
+---
+
+## Create a team
+
+```bash
+curl -X POST https://api.faces.sh/v1/teams \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Platform Engineering"}'
+```
+
+```json
+{
+  "id": "940c0574-445e-44dd-a4f7-505d26882dc5",
+  "name": "Platform Engineering",
+  "tags": null,
+  "description": null,
+  "protocol": null,
+  "kind": "team",
+  "member_count": 0,
+  "created_at": "2026-04-22T16:24:05.932712",
+  "updated_at": "2026-04-22T16:24:05.932712"
+}
+```
+
+Every team response includes:
+
+- `kind`: `"team"` for explicit teams (the ones you create with `POST /v1/teams`); `"personal"` for the auto-created per-user team that always exists alongside every user account. See [Personal vs explicit teams](#personal-vs-explicit-teams) below.
+- `member_count`: current number of members. `0` immediately after creation; updated on every read.
+- `description`: optional plain text, up to 1500 characters, same rules as a face's [`description`](/guides/faces#description).
+- `protocol`: optional free-form text describing how the team works together, typically markdown with a mermaid diagram. Up to 1000 words; over that is a `422`.
+- `tags`: labels managed with the [team tag endpoints](#tags), or `null` when there are none.
+
+`description` and `protocol` can be sent on create as well as on update.
+
+---
+
+## List your teams
+
+Returns every team you manage or belong to, including your personal team.
+
+```bash
+curl https://api.faces.sh/v1/me/teams \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "62b6c0d5-...",
+      "name": "alice",
+      "kind": "personal",
+      "member_count": 1,
+      "created_at": "...",
+      "updated_at": "..."
+    },
+    {
+      "id": "940c0574-...",
+      "name": "Platform Engineering",
+      "kind": "team",
+      "member_count": 4,
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+### Personal vs explicit teams
+
+Every user account has exactly one **personal team**, created automatically at registration, named after the user's username, and managed by them. It's a convenient default container; it always shows up in `/v1/me/teams`. Filter or hide it client-side via the `kind` field.
+
+Explicit teams (the ones you create with `POST /v1/teams`) return `kind: "team"`. The detection rule is mechanical: `kind` is `"personal"` when `team.name == manager.username`, otherwise `"team"`.
+
+A personal team's one starting member is your own account.
+
+---
+
+## Read a single team
+
+```bash
+curl https://api.faces.sh/v1/teams/TEAM_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Callers who are neither a manager nor a member get **`404`** (not `403`).
+
+---
+
+## Update a team
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/teams/TEAM_ID \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Platform Eng", "description": "Faces that review infrastructure changes."}'
+```
+
+Manager only. Send any of `name`, `description` and `protocol`; omitted fields are left
+unchanged, and an empty string clears `description` or `protocol`. A member who is not
+the manager gets `403`; anyone else gets `404`.
+
+---
+
+## Delete a team
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/teams/TEAM_ID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Manager only. The faces themselves are not deleted.
+
+```json
+{ "status": "deleted", "id": "TEAM_ID" }
+```
+
+---
+
+## Members
+
+A team's members are **faces the manager can reach**: faces they own, and faces that are published or shared with them. User accounts cannot be added. Each face can belong to any number of teams.
+
+### List members
+
+```bash
+curl https://api.faces.sh/v1/teams/TEAM_ID/members \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    { "iam_id": "92937d6e-5b26-4bbf-8dcd-4945f07e0d2e", "alias": "alice", "reachable": true, "unreachable_reason": null },
+    { "iam_id": "6e41e9dc-8722-45b9-8eb3-caed208d4a37", "alias": "socrates", "reachable": false, "unreachable_reason": "unpublished_or_unshared" }
+  ]
+}
+```
+
+Access to a face you do not own can be withdrawn after it joins your team. Such a member
+is **kept and marked**, not dropped: `reachable` turns `false` and `unreachable_reason`
+says why: `"deleted"` (with `alias: null`), or `"unpublished_or_unshared"` when its owner
+unpublished it or stopped sharing it with you. Render it as no longer available.
+
+### Add a face
+
+Send either a single `iam_id` or a batch via `iam_ids`. Each entry is a face UID or an
+`owner:alias` handle, such as `head:socrates`.
+
+```bash
+# Single
+curl -X POST https://api.faces.sh/v1/teams/TEAM_ID/members \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"iam_id": "FACE_UID"}'
+
+# Batch
+curl -X POST https://api.faces.sh/v1/teams/TEAM_ID/members \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"iam_ids": ["FACE_UID_1", "head:socrates"]}'
+```
+
+The response is the team's full member list, in the same shape as [List members](#list-members).
+Re-adding an existing member is a no-op (idempotent).
+
+#### Validation and errors
+
+Every candidate is validated up front. If **any** one fails, the entire request is rejected and nothing is written.
+
+| Case | Status |
+| --- | --- |
+| A face you own, or one published or shared with you | `200` |
+| A face owned by someone else that is neither published nor shared with you | `403` |
+| Target is a user account, not a face | `400` |
+| Target UID does not exist, or an `owner:alias` handle you cannot reach | `404` |
+| Neither `iam_id` nor `iam_ids` sent | `400` |
+
+### Remove a member
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/teams/TEAM_ID/members/FACE_UID \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+The manager can remove any member. A UID that is not a member returns `404`.
+
+```json
+{ "status": "removed", "team_id": "TEAM_ID", "iam_id": "FACE_UID" }
+```
+
+A face's owner can also take it out of a team they do not manage, with
+[`PUT /v1/faces/{alias}/teams`](/guides/faces#team-membership).
+
+---
+
+## Tags
+
+Teams carry tags with the same rules as [face tags](/guides/faces#tags): lowercase,
+`^[a-z0-9][a-z0-9:\-_.]{0,63}$`, at most 32. Any member can read them; only the manager
+can change them.
+
+```bash
+# Replace all
+curl -X PUT https://api.faces.sh/v1/teams/TEAM_ID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tags": ["client:acme", "q4"]}'
+
+# Add (idempotent)
+curl -X POST https://api.faces.sh/v1/teams/TEAM_ID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tags": ["urgent"]}'
+
+# Remove one (URL-encode it)
+curl -X DELETE "https://api.faces.sh/v1/teams/TEAM_ID/tags/q4" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# List
+curl https://api.faces.sh/v1/teams/TEAM_ID/tags \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Each returns `{"tags": [...]}`.
+
+---
+
+## Quick reference
+
+| Method | Path | Who can call |
+| --- | --- | --- |
+| `POST` | `/v1/teams` | any authenticated user |
+| `GET` | `/v1/teams/{id}` | manager or member |
+| `PATCH` | `/v1/teams/{id}` | manager |
+| `DELETE` | `/v1/teams/{id}` | manager |
+| `GET` | `/v1/teams/{id}/members` | manager or member |
+| `POST` | `/v1/teams/{id}/members` | manager |
+| `DELETE` | `/v1/teams/{id}/members/{iam_id}` | manager |
+| `GET` | `/v1/teams/{id}/tags` | manager or member |
+| `PUT` / `POST` | `/v1/teams/{id}/tags` | manager |
+| `DELETE` | `/v1/teams/{id}/tags/{tag}` | manager |
+| `GET` | `/v1/me/teams` | any authenticated user |

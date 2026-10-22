@@ -1,0 +1,397 @@
+---
+title: Decisions
+description: Ask what a face would decide, in OpenAI's Decisions format or TypeSafe Jev's System One.
+---
+
+# Decisions
+
+Chat gives you what a face would *say*. Decisions give you what it would *decide*: describe
+a situation, ask typed questions about it (yes/no, pick one, or a graded scale), and get back
+numbers, as this face.
+
+Use it where you need a number rather than prose: routing, simulations, survey-style
+panels, or checking how a face leans before you ask it to write anything.
+
+Two compatible endpoints, each in its own API's format:
+
+| path | format |
+|------|--------|
+| `POST /v1/decisions` | [OpenAI's Decisions API](https://developers.openai.com/api/docs/guides/decisions): `input`, `questions` as an array, OpenAI's answers |
+| `POST /v1/systemone` | [System One](https://docs.typesafe.ai/api), the API of Jev, TypeSafe's decision model, exactly: `state`, `questions` keyed by id, Jev's answers |
+
+Address either one as `face@decision-model`: the face's cause for each question guides the
+decision model's answer. A decision model alone (`jev-latest`) is the no-face baseline. A face
+alone, with no questions, gives just its cause. Each path refuses the other's format with a
+`422` that names the right path. Faces, decision models, limits and prices are the same on
+both.
+
+<Note>
+  **A face needs something compiled.** A face with nothing compiled answers `409` (see
+  [Failures](#failures)). A decision model alone works without a face.
+</Note>
+
+---
+
+## Ask
+
+```bash
+curl -X POST https://api.faces.sh/v1/decisions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@jev-latest",
+    "input": "A colleague asks you to put your name on a grant proposal you have not read, due in an hour. They say it is a formality.",
+    "questions": [
+      {"type": "choice", "name": "sign", "instructions": "Does the speaker sign the proposal?",
+       "choices": [{"value": "yes",   "description": "signs it as asked"},
+                   {"value": "no",    "description": "declines to sign"},
+                   {"value": "later", "description": "asks for time to read it first"}]},
+      {"type": "predicate", "name": "irked", "instructions": "Is the speaker irritated?"},
+      {"type": "score", "name": "firm", "instructions": "How firm is the reply?",
+       "levels": [{"label": "yields"}, {"label": "hedges"}, {"label": "firm"}]}
+    ]
+  }'
+```
+
+```json
+{
+  "object": "decision",
+  "model": "alice@jev-1.13.0",
+  "answers": [
+    {"type": "choice", "name": "sign", "choice": "no", "confidence": 0.4,
+     "probabilities": [{"value": "yes", "probability": 0.0}, {"value": "no", "probability": 0.6},
+                       {"value": "later", "probability": 0.4}]},
+    {"type": "predicate", "name": "irked", "probability": 0.87},
+    {"type": "score", "name": "firm", "score": 1.75, "confidence": 0.64,
+     "probabilities": [{"value": 0, "label": "yields", "probability": 0.02},
+                       {"value": 1, "label": "hedges", "probability": 0.2},
+                       {"value": 2, "label": "firm", "probability": 0.78}]}
+  ],
+  "cause": "They want a signature on something I haven't even looked at, claiming it's just a routine step. It feels rushed. …",
+  "causes": [
+    {"name": "sign",  "cause": "They want a signature on something I haven't even looked at, claiming it's just a routine step. It feels rushed. …"},
+    {"name": "irked", "cause": "They are asking if I'm annoyed, but the real issue is the dishonesty of the request. …"},
+    {"name": "firm",  "cause": "They want to know if I'm sticking to my guns. I can't just sign off on something I haven't even looked at. …"}
+  ],
+  "usage": {"input_tokens": 10285, "output_tokens": 333}
+}
+```
+
+With no face (`"model": "jev-latest"`), the same request answers `sign` `no` at 0.63 and
+`irked` at 0.36.
+
+### The request
+
+| field | meaning |
+|-------|---------|
+| `model` | `face@decision-model`, a decision model alone, or a face alone (just its cause; no questions). See [Model forms](#model-forms). Required. |
+| `input` | The situation: a string, or `user` messages whose `content` is a string or `input_text` parts. Size limits are in tokens; see [Limits](#limits). |
+| `questions` | An array, each `{type, name, instructions, ...}`. `name` is unique and is echoed in the answer. Up to 32, **up to 10 with a face**. Required with a decision model; not allowed with a face alone. |
+
+| `type` | extra fields | answer |
+|--------|--------------|--------|
+| `predicate` | none | `{type, name, probability}`: the probability of yes. |
+| `choice` | `choices: [{value, description}]`, 2 to 255 | `{type, name, choice, probabilities: [{value, probability}], confidence}` |
+| `score` | `levels: [{label, description}]`, lowest first, 2 to 10 | `{type, name, score, probabilities: [{value, label, probability}], confidence}`: `value` is the level's index, and `score` is the expected index (it may be fractional). |
+
+Write `input` the way the face would hear it, addressed to them or describing what is in
+front of them.
+
+Descriptions do the work. `"no"` alone is ambiguous; `"declines to sign"` is not. Keep
+choices mutually exclusive.
+
+### The response
+
+`{object: "decision", model, answers, usage}`, plus `cause` and `causes` with a face.
+
+| field | meaning |
+|-------|---------|
+| `model` | What answered: `face@<decision model>` with the decision model's versioned id (`alice@jev-1.13.0`), the decision model alone, or the face alone. |
+| `answers` | One answer per question, in the order asked. |
+| `causes` | With a face: `[{name, cause}]`, the face's cause for each question, in the order asked. |
+| `cause` | The face's cause for your **first** question (its entry in `causes`); with a face alone, the cause for `input`. The same field as chat's `message.cause`. |
+| `usage` | `{input_tokens, output_tokens}`, the cause and the decision model together. |
+
+### Where it differs from OpenAI's
+
+- `model` names our decision models (`jev-latest`, `clef`, `clef-flash`) or a
+  face, not OpenAI's models. A name that is neither is read as a face that does not exist:
+  `404` without questions, `422` with them.
+- Image input (`input_image`) is a `422`. Send the situation as text.
+- Fields OpenAI's API does not document are refused (`422`) rather than ignored. That includes
+  `stream`, and messages from any role but `user`.
+- A question the decision model gives no usable answer to comes back as
+  `{"type": "refusal", "name": …, "refusal": …}`.
+- With a face, the response also carries `cause` and `causes`.
+
+---
+
+## System One
+
+**It is [Jev](https://docs.typesafe.ai/api)'s API, exactly, at Jev's own path.** A request
+written for TypeSafe's `/v1/systemone` works here with only the host and `model` changed: the
+same `state`, the same `questions`, the same answers. To use TypeSafe's SDK, see
+[From a Jev SDK](#from-a-jev-sdk).
+
+```bash
+curl -X POST https://api.faces.sh/v1/systemone \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@jev-latest",
+    "state": "A colleague asks you to put your name on a grant proposal you have not read, due in an hour. They say it is a formality.",
+    "questions": {
+      "sign": {
+        "type": "choice",
+        "instructions": "Does the speaker sign the proposal?",
+        "criteria": {
+          "yes":   "signs it as asked",
+          "no":    "declines to sign",
+          "later": "asks for time to read it first"
+        }
+      },
+      "irked": {
+        "type": "noul",
+        "instructions": "Is the speaker irritated?"
+      },
+      "firm": {
+        "type": "score",
+        "instructions": "How firm is the reply?",
+        "criteria": ["yields", "hedges", "firm"]
+      }
+    }
+  }'
+```
+
+```json
+{
+  "model": "alice@jev-1.13.0",
+  "answers": {
+    "sign":  {"type": "choice", "choice": "no", "confidence": 0.98,
+              "probabilities": {"yes": 0.0, "no": 0.99, "later": 0.01}},
+    "irked": {"type": "noul", "noul": 0.86},
+    "firm":  {"type": "score", "score": 1.99, "confidence": 0.98,
+              "legend": {"0": "yields", "1": "hedges", "2": "firm"},
+              "probabilities": {"0": 0.0, "1": 0.01, "2": 0.99}}
+  },
+  "usage": {"input_tokens": 10610, "output_tokens": 343},
+  "cause": "I can't just put my signature on something I haven't even looked at. …",
+  "causes": {
+    "sign":  "I can't just put my signature on something I haven't even looked at. …",
+    "irked": "They are asking if I'm annoyed, but the real issue is the dishonesty of the request. …",
+    "firm":  "They want to know if I'm wavering. I'm not. …"
+  }
+}
+```
+
+### The request
+
+| field | meaning |
+|-------|---------|
+| `model` | `face@decision-model`, a decision model alone, or a face alone. See [Model forms](#model-forms). Required. |
+| `state` | The situation: a string, an object or an array, as in Jev. Size limits are in tokens; see [Limits](#limits). |
+| `questions` | Up to 32 questions, keyed by an id you choose: **up to 10 with a face**. Required with a decision model; not allowed with a face alone. |
+| `questions.<id>.type` | `noul`, `choice` or `score`. |
+| `questions.<id>.instructions` | The question itself: a string, an object or an array. |
+| `questions.<id>.criteria` | Depends on `type`, below. |
+
+| `type` | `criteria` | answer |
+|--------|-----------|--------|
+| `noul` | Optional `{"true": ..., "false": ...}`: what a yes and a no mean. | `{type, noul}`: the probability of yes, 0 to 1. |
+| `choice` | Required. `{option: description}`, 2 to 255 options; a description may be `null`. | `{type, choice, probabilities, confidence}`: the likeliest option, a probability per option. |
+| `score` | Required. An ordered array of 2 to 10 level descriptions. | `{type, score, legend, probabilities, confidence}`: the expected level (0 to n−1), the levels by index, a probability per level. |
+
+### The response
+
+| field | meaning |
+|-------|---------|
+| `model` | What answered, as on [`/v1/decisions`](#the-response). |
+| `answers` | One answer per question, keyed by your ids. |
+| `usage` | `{input_tokens, output_tokens}`, the cause and the decision model together. |
+| `causes` | With a face: the face's cause for each question, keyed by your ids. |
+| `cause` | The face's cause for your **first** question (its entry in `causes`); with a face alone, the cause for `state`. |
+
+---
+
+## Model forms
+
+| `model` | what you get |
+|---------|--------------|
+| `alice@jev-latest` | The decision model answers as this face. Returns `answers`, `causes` and `cause`. |
+| `jev-latest` | The decision model alone, no face: the baseline to compare a face against. Costs only the decision model. |
+| `alice` | The face's cause alone. No questions, no answers. Costs only the cause. |
+
+A [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) works wherever a face does: `(alice | bob)@jev-latest`, or `(alice | bob)` alone.
+
+A face alone returns `{object: "decision", model, answers: [], cause, usage}` on
+`/v1/decisions`, and `{model, cause, usage}` on `/v1/systemone`.
+
+The decision models are `jev-latest`, `clef` and `clef-flash`. Any other
+value after `@` is a `400`. Ids are case-insensitive: `CLEF-flash` works, and the
+response spells it `clef-flash`. Their prices are in
+[`GET /v1/models?kind=decision`](/guides/chat#supported-models): per input token, output
+free, plus the markup in [`GET /v1/rates`](/guides/billing#current-rates).
+
+`confidence` is Jev's on both paths: for a choice `(p_max − 1/n) / (1 − 1/n)`, for a score
+one minus the expected distance from the likeliest level, scaled by a uniform answer's. See
+[Jev's confidence](https://docs.typesafe.ai/confidence).
+
+### What the face brings
+
+Each question gets its own face-specific cause, drawn from the situation and that question
+together, so a different question on the same situation gets a different cause. It is the
+question's entry in `causes`, the same field [chat](/guides/chat#the-faces-cause) returns.
+
+A decision can differ from what the same face says in [chat](/guides/chat) on a similar
+prompt: a decision is closed-ended, a choice among the options or levels you give, while chat
+is open-ended and may also apply a [style](/guides/style). See
+[Chat and decisions can differ](/introduction#chat-and-decisions-can-differ).
+
+### Limits
+
+Counted in tokens, per decision model. The situation plus your longest question, and the
+whole request (the situation plus every question):
+
+| decision model | situation + longest question | whole request |
+|----------------|------------------------------|---------------|
+| `jev-latest`   | 30,000 | 62,000 |
+| `clef`         | 30,000 | 63,500 |
+| `clef-flash`   | 22,500 | 22,500 |
+| a face alone   | 30,000 | 62,000 |
+
+Over a limit is a `422` that names the size and the limit, before any work, so nothing is
+charged. The same numbers are at [`GET /v1/rates`](/guides/billing#current-rates)
+(`limits.decisions`; `face` is a face alone).
+
+Both paths count against your plan's per-minute request limit
+(`limits.requests_per_minute` in [`GET /v1/rates`](/guides/billing#current-rates)). Over it
+is a `429` with `Retry-After`; see [Errors](/errors).
+
+---
+
+## From a Jev SDK
+
+Point TypeSafe's SDK at Faces with two environment variables:
+
+```bash
+export TYPESAFE_BASE_URL=https://api.faces.sh
+export TYPESAFE_API_KEY=YOUR_FACES_API_KEY
+```
+
+Then set `model` to a face (`alice@jev-latest`), or keep `jev-latest` for Jev alone. The SDK
+posts to `/v1/systemone`, which takes only Jev's format; `/v1/decisions` takes OpenAI's.
+
+**Raise the SDK's timeout to at least 60 seconds.** Its default is 10 seconds per attempt,
+retried twice, and every retry is a new, billed request. A decision with a face typically
+takes 10 to 25 seconds; a decision model alone answers in about a second.
+
+Compressed request bodies are accepted on both paths: `Content-Encoding: gzip`, `x-gzip` or
+`zstd`. The Python SDK sends zstd by default when it can (Python 3.14+, or the `typesafe-sdk[zstd]`
+extra). One layer only: any other encoding, or two layers, is a `415`. At most 32 MiB once
+decompressed, or it is a `413`.
+
+**Where it differs from Jev:**
+
+- Over a size limit is a `422` naming the size (see [Limits](#limits)), not Jev's `400 max_tokens_exceeded`.
+- A decision model that fails is a `503` (retry), not Jev's `529`. The SDK retries both.
+- With a face, at most 10 questions per request.
+- `box` questions and images are not supported.
+- With a face, the response also carries `cause` and `causes`. The SDK ignores fields it doesn't know.
+
+---
+
+## Chaining decisions
+
+Decisions keep no history between requests, so **you send the history in the situation**.
+`/v1/systemone` takes it as a `messages` array in `state`: each earlier situation as a `user`
+message, what was decided as an `assistant` message, and the current situation last.
+
+```json
+{
+  "model": "alice@jev-latest",
+  "state": {"messages": [
+    {"role": "user", "content": "Monday. A new flour supplier is half the price of the old one... (the first situation)"},
+    {"role": "assistant", "content": "Alice decided: Switch to the new supplier."},
+    {"role": "user", "content": "Tuesday. The new supplier missed the morning delivery... (now)"}
+  ]},
+  "questions": {"move": {"type": "choice",
+                         "instructions": "What does Alice do now?",
+                         "criteria": {"keep": "Keep the new supplier",
+                                      "switch": "Go back to the old supplier"}}}
+}
+```
+
+On `/v1/decisions`, `input` takes `user` messages only: write the history into the text.
+
+- **Include the earlier situations, not just the earlier choices.**
+- **Don't replay earlier `cause`s into the situation.**
+
+[Chat](/guides/chat#keep-causes-in-the-transcript) differs: keep each turn's `cause` in the
+transcript.
+
+Both paths accept `session` and `compaction`: see [Sessions](/guides/sessions).
+
+## Cost
+
+A decision is charged in two parts: the face's cause, then the decision model.
+
+- **The face's cause** is counted **once per question**: the situation plus that question,
+  **plus 1,500** per cause. It counts against your plan's cause
+  [allowance](/guides/billing#allowances), or is paid at $0.75 per million tokens on the Free
+  plan or past the allowance. So three questions on a 5,000-token situation count about
+  19,500 tokens.
+- **The decision model** is paid from your credits on every plan, at the model's listed price
+  plus 5%, on the token count it reports itself. So a decision needs credit, even when the
+  cause is covered: with none, it is a `402` before any work.
+- **A face alone** (`"model": "alice"`) is charged for its cause only.
+
+Nothing is charged for a request refused before work starts (`400`, `402`, `403`, `409`,
+`422`, `429`).
+
+---
+
+## Speed
+
+A decision with a face takes about 20 seconds, a face alone about 10, and a decision model
+alone about a second. **Set your client timeout to at least 60 seconds.**
+
+**A slow call is held open.** Past about 40 seconds, the response is a `200` with the header
+`X-Faces-Held: 1`, and whitespace before the JSON. Parse the body as usual. A failure after
+that point comes back inside the `200` as an error body, with `detail` and OpenAI's `error`
+object carrying the real `status`, and no `answers`. When `X-Faces-Held` is set, check for
+`error` before reading `answers`.
+
+After an idle spell the decision models start cold, and warming takes about two minutes.
+The first request to meet a cold start waits about 35 seconds and then gets a `503`; every
+request during the warm-up gets its `503` at once, with a `Retry-After` header: the seconds
+until it should be warm. Honour it exactly.
+
+```
+HTTP/1.1 503 Service Unavailable
+Retry-After: 87
+```
+
+The `detail` says it is warming up, how long to wait, and that nothing was charged. Treat
+`503` as the retry signal, as [everywhere else](/errors#503-is-the-retry).
+
+---
+
+## Failures
+
+Every failure is JSON with a `detail` you can show.
+
+| code | when | what to do |
+|------|------|------------|
+| `400` | `model` is none of the three forms, or names something after `@` that is not a decision model | Fix the request. |
+| `402` | No credit to pay for it | [Top up](/guides/billing). |
+| `403` | The API key may not use this face, or the face is not yours to use | Use a key or face that may. |
+| `404` | No such face, or not one you can use | Check the alias. |
+| `409` | The face has nothing compiled | Compile a source for it. |
+| `422` | The body is the wrong shape (a missing field, criteria that do not fit the type, questions with a face alone or none with a decision model), the other path's format (the message names the right path), or it is over a [limit](#limits) | Read the message. |
+| `429` | Over the per-minute request limit, with `Retry-After`; or Connect or Pro, cause allowance used and `api_fallback` off, with the reset date | Wait `Retry-After` seconds; for the allowance, turn on `api_fallback` or wait for the reset. |
+| `503` | Warming up from a cold start. Answered at once, with `Retry-After` | Retry after `Retry-After` seconds. |
+| `503` | The decision model is unavailable. Nothing is charged | Retry later, or use another decision model. |
+| `503` | The face's cause failed, or the decision model did. The message says which | Retry. |
+| `503` | The decision model you named is not available right now. Refused before any work, so nothing is charged | Try another decision model, or retry later. |
+
+A failure never falls back to an answer without the face.

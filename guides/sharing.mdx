@@ -1,0 +1,156 @@
+---
+title: Sharing Faces
+description: Keep a face private, share it with named accounts, or publish it to everyone.
+---
+
+# Sharing Faces
+
+A face you create is private: only you can chat with it. There are two ways to let other
+people use it.
+
+| state | who can chat with it |
+| --- | --- |
+| private (default) | you |
+| **shared** | the accounts you name, and nobody else |
+| **published** | every account on the platform |
+
+Publishing is the broad switch. Sharing is the precise one. `published: true` overrides
+sharing while it is on: a published face is available to everyone regardless of who it
+is shared with.
+
+---
+
+## Share with named accounts
+
+```bash
+curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"shared_with": ["dana", "sam"]}'
+```
+
+```json
+{ "alias": "alice", "shared_with": ["dana", "sam"], "handle": "you:alice" }
+```
+
+`dana` and `sam` can now chat with the face using the handle in the response.
+
+<Warning>
+  **Send the complete list every time.** This replaces the whole set, it does not add to
+  it. A name you leave out loses access the moment the request succeeds, and
+  `{"shared_with": []}` revokes everyone.
+</Warning>
+
+Each entry is **an existing account's username or its email address**, and the two
+may be mixed in one list. Email is a second way to find an account, not an
+invitation; it must already belong to one. An unknown entry returns `404` and
+says which one, and nothing is changed: a list with one bad entry applies none of
+itself rather than half of itself. You cannot share a face with yourself (`400`).
+
+Revoking is the same call without the name. Once the list is empty, `handle` comes back
+`null`.
+
+```bash
+# dana keeps access, sam loses it immediately
+curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"shared_with": ["dana"]}'
+```
+
+---
+
+## What sharing does and does not give away
+
+A shared face can be **chatted with**, and its card can be read: its name, description,
+`basic_facts` and avatar, the same fields a [published face](/guides/faces#faces-you-do-not-own)
+shows. The people you share with can also put it in a [team](/guides/teams) of their own.
+
+They cannot read the documents you compiled into it, cannot compile
+into it or change it, cannot share it onward, and never see its
+[profile addendum](/guides/faces), which stays proprietary to you exactly as it does for
+published faces.
+
+**Billing is unchanged.** You pay to compile your face. Whoever chats with it pays for
+their own inference on their own account.
+
+---
+
+## Publish to everyone
+
+```bash
+curl -X PATCH "https://api.faces.sh/v1/faces/alice/publish" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"published": true}'
+```
+
+```json
+{ "alias": "alice", "published": true, "handle": "you:alice" }
+```
+
+Any account can then chat with `you:alice`, and it appears in the published listing for
+everyone. Unpublishing revokes that immediately, and returns `"handle": null`.
+
+**Any face owner can publish.**
+
+---
+
+## Finding faces other people made available to you
+
+`GET /v1/faces` returns only your own faces by default. Two independent flags widen it:
+
+```bash
+# faces shared with you specifically
+curl "https://api.faces.sh/v1/faces?include_shared=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# faces anyone has published
+curl "https://api.faces.sh/v1/faces?include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# both
+curl "https://api.faces.sh/v1/faces?include_shared=true&include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+They answer different questions and neither implies the other. `include_published` is
+about what is open to everybody; `include_shared` is about what was made available to
+**you**.
+
+### `via`: how a shared face reached you
+
+Items returned by `include_shared=true` carry a `via` field:
+
+```json
+{
+  "alias": "alice",
+  "owned_by": "dana",
+  "via": ["shared"]
+}
+```
+
+`["shared"]` means the owner named your account directly.
+
+Published faces do not carry `via`; they carry `published: true` instead.
+
+---
+
+## Chatting with a face someone shared
+
+Use the `owner:alias` handle, exactly as for a published face, and name a model after
+`@`. The bare handle returns the face's [cause alone](/guides/chat#the-faces-cause),
+not an answer:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/chat/completions" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "dana:alice@gpt-5.6-terra",
+    "messages": [{"role": "user", "content": "What do you make of this?"}]
+  }'
+```
+
+If access has been revoked, or was never granted, this returns `404`, the same response
+a face that does not exist returns.

@@ -1,0 +1,494 @@
+---
+title: Style
+description: Build a style for how a face uses language in different situations.
+---
+
+# Style
+
+All source texts are labeled with a **medium**: the kind of writing they are. There
+are eleven: `email`, `text message`, `social post`, `essay`, `academic paper`, `blog post`,
+`legal document`, `thread reply`, `conversation`, `lecture` and `other`.
+
+A **style build** reads a face's own writing in one medium and installs a style for it, so
+the face writes better in that medium. A face holds a separate style for each medium.
+
+<Note>
+  **You may not need to call it at all.** Once a face has enough of its own writing in a
+  medium, a build runs for that medium automatically. This is on by default on Connect
+  and Pro, and off on Free. See [Automatic builds](#automatic-builds).
+</Note>
+
+A style applies only on the chat wrappers (`/v1/chat/completions`, `/v1/responses`,
+`/v1/messages`). [Causes](/guides/causes) and [decisions](/guides/decisions) do not use it.
+
+---
+
+## 1. Give the face something to read
+
+Two shapes, by what the material is.
+
+### A single piece of writing
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=essay&perspective=first-person" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@essay.txt"
+```
+
+Two fields, both declared and never inferred:
+
+- **`medium`**: what the file *is*. One of `email`, `text message`, `social post`,
+  `essay`, `academic paper`, `blog post`, `legal document`, `thread reply`,
+  `conversation`, `lecture`, `other`.
+- **`perspective`**: `first-person` if the subject wrote it, `third-person` if it is
+  *about* them. Third-person writing never contributes to a style. It defaults to
+  `third-person` on `POST /v1/faces/{alias}/upload` and to `first-person` on
+  `POST /v1/compile/documents`, so set it explicitly. A build whose sources are *all*
+  third-person is refused (see below).
+
+### Many messages in one file
+
+For a mailbox or transcript export, upload the whole thing:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=email_jsonl&emails_per_thread=50" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -F "file=@mail.jsonl"
+```
+
+Returns the new threads' ids in **`thread_ids`** and their number in `thread_count`, plus
+`skipped` itemising any message that failed validation. Lenient by default: a malformed row
+is skipped and the rest are kept. Pass `?strict=true` to make it all-or-nothing, a `422` on
+the first bad row.
+
+Each reason, skipped or `422`, names every problem with its row at once. An unknown
+field is answered with the list of fields a row accepts. `body` and `text` are read
+as `plaintextBody`.
+
+<Note>
+  A bulk upload takes no `medium`: each message declares its own, and sending one returns
+  `422`. Correct a thread afterwards with the PATCH below.
+</Note>
+
+### Correcting what a thread is read as
+
+Uploaded material is grouped by the medium its messages declared. When that is wrong
+(a talk that arrived looking like a conversation, an SMS export), set it directly:
+
+```bash
+curl -X PATCH "https://api.faces.sh/v1/compile/threads/THREAD_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"medium": "lecture"}'
+```
+
+This is a partial update: `{"label": …}`, `{"medium": …}` or both. Sending
+`{"medium": null}` clears the correction.
+
+Each row from `GET /v1/compile/threads` carries two fields:
+
+| field | meaning |
+| --- | --- |
+| `corpus_medium` | what the material declared when it arrived. Read-only. |
+| `medium` | your correction, or `null`. This is what a build uses. |
+
+---
+
+## 2. Build
+
+```bash
+curl -X POST "https://api.faces.sh/v1/style/builds" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "self_face": "alice",
+    "sources": [
+      {"id": "THREAD_ID", "source_type": "thread"},
+      {"id": "DOC_ID",  "source_type": "document", "medium": "essay"}
+    ]
+  }'
+```
+
+Returns `202` and a **`job_id`**.
+
+`sources` is required. Each source's `source_type` is `"thread"` (the default) or
+`"document"`. Each source may declare its own `medium`; omit it and the source's own
+declaration is used: a document's stored medium, or a thread's. A source that has never
+declared one is refused.
+
+`model` is optional and picks the model that runs the build; it decides what the build
+costs. See [What a build costs](#what-a-build-costs). By default, sources with uncompiled
+material are compiled first (`compile: true`), billed as ordinary compiles; send
+`"compile": false` to skip that.
+
+<Note>
+  Each medium's style is built separately, so an essay never contributes to how the face
+  writes email. One face can hold a style for several media at once.
+</Note>
+
+<Warning>
+  **A build needs the subject's own writing.** If *every* source you name is
+  `third-person` (material about the person rather than by them), the request is
+  refused with `422 style_sources_all_third_person`.
+
+  A mixed request is accepted. Threads are not checked for perspective.
+</Warning>
+
+### Poll it
+
+```bash
+curl "https://api.faces.sh/v1/style/builds/JOB_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Ends at `done` or `failed`. On failure, `error` says what to do: top up, reconnect,
+or fix the input. It never contains internal detail; if you see any, that is a bug
+worth reporting with the job id.
+
+The job also reports **what it is building**, from the very first poll: `media` is
+the set of media it was started for, and `medium` is the single value when there is
+exactly one, `null` when the job spans several.
+
+### Lost the job id
+
+```bash
+curl "https://api.faces.sh/v1/style/builds?self_face=alice" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Newest first. This is the durable handle; you do not have to persist `job_id`.
+
+### One build at a time per medium
+
+Starting a build for a face and medium that already has one running is refused with
+`409 build_in_progress`, and the refusal names the running job:
+
+```json
+{"detail": {"message": "a style build for this face and medium is already running; poll it instead of starting another",
+            "error_code": "build_in_progress", "job_id": "..."}}
+```
+
+Poll that `job_id` instead of retrying. This is checked before anything is spent.
+
+### What the finished report tells you
+
+A `done` job's `report` includes:
+
+| field | meaning |
+|-------|---------|
+| `corpus_threads` | How many threads the build read. |
+| `skipped_third_person` | Documents left out as `third-person`: writing *about* the subject. |
+| `thin_corpus` | `{medium: {"words": n, "threshold": x}}` for each medium built from less of the subject's writing than the account's [automatic threshold](#automatic-builds). The style is installed anyway, on a small sample. |
+| `served_by` | Where the build ran: `{"route": "chatgpt" \| "faces", "model": "...", "fell_back": false}`. See [What a build costs](#what-a-build-costs). |
+
+A manual build has **no minimum size**. It runs on whatever you name, and
+`thin_corpus` is how it tells you the sample was small.
+
+---
+
+## Automatic builds
+
+A face's style is built for a medium without anyone asking, once there is
+enough of the face's **own** writing in that medium.
+
+- **What counts.** Only words the face itself wrote: its own messages in uploaded
+  message threads, and documents that are `first-person` or have no perspective set.
+  Writing *about* the face never counts. Email and text message count only from uploaded
+  message threads (`email_jsonl`, `jsonl`, `thread_json`), not from documents.
+- **When.** The first build runs when the face's writing in a medium passes the
+  threshold. After that, a build runs again only at **twice** the threshold, then
+  three times, and so on. A multiple is built once: deleting material and adding it
+  back does not repeat it. A multiple whose build failed is tried again on a later
+  check, no sooner than an hour after the failure.
+- **What triggers the check.** A compile finishing, and a message-thread upload
+  (`email_jsonl`, `jsonl`, `thread_json`) arriving. A transcript uploaded with
+  `type=thread`, and an interview thread, have no medium until you
+  [set one](#correcting-what-a-thread-is-read-as), and do not count until then.
+- **It goes live at once.** An automatic build installs immediately, exactly like a
+  manual one. The previous version is kept, and one
+  [revert](#4-see-what-is-installed-and-undo) restores it.
+- **You can see it.** It is an ordinary job in
+  [`GET /v1/style/builds`](#lost-the-job-id). Its `report.auto` says why it ran:
+
+```json
+{"auto": {"medium": "email", "multiple": 2, "words": 31240, "threshold": 15000,
+          "trigger": "upload", "oauth_only": true}}
+```
+
+Who pays for an automatic build is the same as for a manual one: see
+[What a build costs](#what-a-build-costs).
+
+### The thresholds
+
+Counted in the face's own words, per medium:
+
+| medium | default |
+|--------|---------|
+| `essay`, `academic paper`, `blog post`, `legal document` | 10,000 |
+| everything else: `email`, `text message`, `social post`, `thread reply`, `conversation`, `lecture` | 15,000 |
+
+`other` is never built automatically. It still appears in `auto_style_thresholds`, but
+its value is not used.
+
+### Turning it on or off, and changing the thresholds
+
+Both are account preferences, so they cover every face the account owns:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/user/preferences \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "auto_style": "on",
+    "auto_style_thresholds": {"email": 25000, "essay": null}
+  }'
+```
+
+| field | values |
+|-------|--------|
+| `auto_style` | `"on"`, `"off"`, or `"default"`, which goes back to the plan's default (on for Connect and Pro; off for Free). Anything else is a `400`. |
+| `auto_style_thresholds` | `{medium: words}`, merged into what is already stored. `null` puts that medium back to its default. At least 500 words; an unknown medium is a `400` naming the known ones. |
+
+The response, and `GET /v1/user/preferences`, report the result as it applies to
+this account:
+
+```json
+{
+  "api_fallback": false,
+  "default_model": null,
+  "auto_style": true,
+  "auto_style_setting": "on",
+  "auto_style_thresholds": {"email": 25000, "essay": 10000, "text message": 15000, "...": "..."}
+}
+```
+
+- **`auto_style`** is the effective answer: is it running for this account right
+  now. Drive a toggle from this.
+- **`auto_style_setting`** is what was stored: `"on"`, `"off"`, or `null` for "the
+  plan's default". It is how you tell "on because you said so" apart from "on
+  because of the plan".
+- **`auto_style_thresholds`** lists **every** medium, with defaults filled in.
+
+Turning it off stops future automatic builds. It removes nothing: styles already
+built stay installed, and you [remove them](#5-remove-it) as you would any other.
+
+---
+
+## 3. Use it
+
+Building a style does not apply it. On a chat wrapper (`/v1/chat/completions`,
+`/v1/responses`, `/v1/messages`), send **`style`** with the medium whose style you want:
+
+```json
+{
+  "model": "alice@MODEL",
+  "style": "email",
+  "messages": [{"role": "user", "content": "Reply to the note below."}]
+}
+```
+
+On an account with ChatGPT [linked](/guides/oauth), send a Codex-eligible model to
+`/v1/responses`: at `/v1/chat/completions` it is a `409` before `style` is read.
+
+Leave `style` out and no built style is applied. `style` also sets the request's
+[`medium`](#asking-for-a-medium), so you do not need both; sending both with different values
+is a `400`.
+
+**A style adds input tokens.** It adds roughly 2,000 to 3,500 input tokens to every request
+that sends it, billed as model input, or free on the [ChatGPT route](/guides/oauth). The exact
+figure for each request is in its `usage`. It applies
+only on the chat wrappers: [causes](/guides/causes) and [decisions](/guides/decisions) do not
+take it.
+
+Each of these is a `400`:
+
+- `style` is not a medium. The message lists the media.
+- `model` names no face. `style` needs `"model": "face@model"`.
+- `model` is a combination of faces. A style applies to one face.
+- `medium` names a different medium than `style`.
+- The face has no style for that medium, or no styles at all:
+
+```
+This face has no email style. Its styles: essay.
+'alice' has no styles yet.
+```
+
+---
+
+## 4. See what is installed, and undo
+
+```bash
+curl "https://api.faces.sh/v1/style/versions/alice" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+One entry is `active` per medium; that is what a face uses for that situation.
+`can_revert` tells you whether an entry has a previous version to fall back to.
+
+Each entry also names the build behind it (`sources_printed`, how many sources it
+read, and `job_id`, the job itself), so a confirmation can say *"back to the style
+built on 12 August from 41 sources"* rather than a bare "Revert". Both are `null`
+for older builds, and after a full delete, which removes the build history with it.
+
+```bash
+curl -X POST "https://api.faces.sh/v1/style/versions/revert" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"self_face": "alice", "medium": "email"}'
+```
+
+A **one-deep undo, scoped to one medium**: reverting email does not disturb the
+essay style. Answers `409` when there is no earlier version, which is a normal
+condition rather than a fault.
+
+A build after a revert keeps the version you reverted **to** as its previous
+version, so reverting and then building again never loses the style you chose to
+go back to.
+
+---
+
+## 5. Remove it
+
+```bash
+# forget ONE style, keep the others
+curl -X DELETE "https://api.faces.sh/v1/style/faces/alice?medium=email" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# forget every style this face has
+curl -X DELETE "https://api.faces.sh/v1/style/faces/alice?all=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Removes the installed style and everything derived from it. **It does not delete the
+material you uploaded**, and it does not touch the face, so you can always build
+again without re-uploading.
+
+<Warning>
+  **On a face with more than one style, you must say which.** Omitting both `medium`
+  and `all` answers `409 style_delete_ambiguous`, naming the styles the face holds.
+
+  Naming a medium the face does not have is a `404`.
+
+  On a face with a single style, an unscoped delete works.
+</Warning>
+
+A scoped delete removes that medium's style and its versions. What belongs to no single
+medium, such as the build history, is kept.
+
+To delete uploaded material, use `DELETE /v1/faces/{alias}/corpus` (optionally
+`?medium=`). Calling this on a face that has never had a style built is a `200`, not a `404`.
+
+---
+
+## Knowing which sources a style has been built from
+
+Thread and document listings carry a **`style`** stamp per source: when a style was last
+built from it, and as what:
+
+```json
+{"id": "THREAD_ID", "medium": "email",
+ "style": {"captured_at": "2026-08-30T09:12:00", "medium": "email", "job_id": "..."}}
+```
+
+`null` when no style has been built from that source. Each build overwrites it, so it
+records the latest build.
+
+---
+
+## Knowing which faces have a style
+
+Every face carries `styles`, the media it has a built style for:
+
+```json
+{"alias": "alice", "styles": ["conversation", "lecture"]}
+```
+
+An empty list means no style has been built. Read it before sending `style`, to offer only the
+media a face has.
+
+## Asking for a medium
+
+Without `style`, you can still send `medium` to say which kind of writing the reply is. It
+needs no build, and is never refused:
+
+```json
+{
+  "model": "alice@MODEL",
+  "medium": "lecture",
+  "messages": [{"role": "user", "content": "Explain the coastline paradox."}]
+}
+```
+
+Omit both and the face works the medium out from your latest turn.
+
+---
+
+## What a build costs
+
+A build is billed per token, on the model it runs on: `model` in the request, or the default.
+Read that model's price in [`GET /v1/models`](/guides/chat#supported-models). On the default
+model a build often costs less than $0.50 per medium. There is no estimate before a build
+runs; what it spent appears in
+[`GET /v1/billing/usage`](/guides/billing) under the face, with the build's `job_id`.
+
+| plan | with the default model | with a Codex-eligible model | with any other model |
+|------|------------------------|-----------------------------|----------------------|
+| Free | billed from credits, at the model's price plus 5% | billed from credits, at the model's price plus 5% | billed from credits, at the model's price plus 5% |
+| Connect, Pro | **not billed**: runs on the linked ChatGPT plan when one is linked | runs on the linked ChatGPT plan, and is not billed | **not billed** |
+
+On the default model with a linked ChatGPT plan, a build that cannot use the link (an expired
+sign-in, or the plan's usage limit) carries on and finishes on the Faces route, still not
+billed. A build that names its own `model` runs on that model.
+
+The finished report's `served_by` says where it ran:
+
+| field | meaning |
+| --- | --- |
+| `route` | `"chatgpt"` when the build ran on the linked ChatGPT plan, whether on the default model or a model it named. `"faces"` when any of it ran on the Faces route, including a build that fell back partway. |
+| `model` | The model the build finished on. |
+| `fell_back` | `true` when the build started on the linked plan and finished on the Faces route. |
+
+Compiling uncompiled sources first (`compile: true`) is billed separately, as an ordinary
+compile.
+
+### `oauth_only`
+
+`oauth_only` applies only when `model` is [Codex-eligible](/guides/oauth). It defaults to
+**true**: the build runs on the linked ChatGPT plan, or not at all.
+
+- **No ChatGPT account linked:** `409 chatgpt_not_linked`, before a job exists.
+- **The link is rejected** (usually an expired sign-in): the job fails with `CHATGPT_AUTH`.
+  Reconnect, then build again.
+- **`oauth_only: false`:** if ChatGPT is unavailable (no link, an expired sign-in, its usage
+  limit, or a reply that keeps stopping short), the build is billed from credits instead.
+
+On Free there is no ChatGPT route. Leave `oauth_only` out and the build bills credits; send
+`oauth_only: true` and it is a `422 oauth_only_unavailable`, and nothing is charged.
+
+Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/chat#supported-models).
+
+---
+
+## Failures worth handling
+
+All of these come back **before** a job exists: you get an error and no `job_id`,
+and nothing has started.
+
+| Code | When | What to tell the user |
+| --- | --- | --- |
+| `404` | A named source does not exist | Check the id. |
+| `403` | A named source is not theirs | Check the id. |
+| `422` | A source has no medium and never declared one | Set one, or send `medium`. |
+| `422` | A live thread still has uncompiled messages | Compile it with `/make`, or send `compile: false`. |
+| `422` | `oauth_only_unavailable`: `oauth_only: true` on Free | Leave `oauth_only` out. |
+| `400` | The `model` is not one a build can run on | Pick another model. |
+| `402` | The account cannot pay for compiling the sources first | Top up. |
+| `409` | `chatgpt_not_linked`: `oauth_only` with no ChatGPT account linked | [Link ChatGPT](/guides/oauth), or set `oauth_only: false`. |
+| `409` | A named source is busy right now | Wait, then retry. |
+| `409` | `build_in_progress`: this face and medium already has a build running | Poll the `job_id` it names. |
+| `409` | The face is locked | Unlock it. |
+
+`409` is the only one worth retrying automatically, and only after a delay.
+
+A Free account that cannot pay for the build itself gets its `job_id`, and the job then
+fails with `insufficient_credits`.

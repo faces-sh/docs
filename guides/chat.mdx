@@ -1,0 +1,492 @@
+---
+title: Chat
+description: Run inference with any face using the chat API.
+---
+
+# Chat
+
+The Faces API exposes three chat endpoints. Pass a face alias in the `model` field and the model answers as that face.
+
+| Endpoint | Format | Use it for |
+|----------|--------|------------|
+| `/v1/chat/completions` | OpenAI chat completions | Any model: universal, OpenAI-shape responses |
+| `/v1/messages` | Anthropic messages | Native Anthropic format |
+| `/v1/responses` | OpenAI responses | gpt-5.x; required for free ChatGPT/OAuth routing and the richer Responses features |
+
+<Tip>
+  **Each endpoint is a faithful passthrough: pick the one matching the response shape you want.** `/v1/chat/completions` forwards to each provider's own chat-completions API and always returns the OpenAI `chat.completion` shape. It does **not** convert to the Responses or Messages format. A model that's responses-only (e.g. `gpt-5.2-pro`) returns the provider's own "use `/v1/responses`" error.
+</Tip>
+
+<Note>
+  **Codex-eligible models (`codex_eligible: true` in [`/v1/models`](#supported-models)) run on a linked ChatGPT plan only at `/v1/responses`.** For a linked account, calling them at `/chat/completions` is a `409`. See [Running on a linked ChatGPT plan](#running-on-a-linked-chatgpt-plan).
+</Note>
+
+---
+
+## Basic usage
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "What matters most to you in your work?"}
+    ]
+  }'
+```
+
+The face's cause steers the model's answer. You do not need to manage this context yourself.
+
+Name the answering model after `@`. A bare alias (`"model": "alice"`) returns the face's cause alone and no answer: see [The face's cause](#the-faces-cause).
+
+---
+
+## Model override syntax
+
+Name the model after the face with `alias@llm-model`:
+
+```
+"model": "alice@gpt-4o-mini"
+"model": "alice@claude-sonnet-4-6"
+"model": "alice@llama-3.3-70b"
+```
+
+The format is `alias@llm-model`. The model must be in the [supported models](#supported-models) list.
+
+The `model` field accepts these shapes on **all three endpoints** (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`):
+
+| Shape | Meaning |
+| --- | --- |
+| `"alice"` (bare alias) | The face's **cause alone**, and no answer: see [The face's cause](#the-faces-cause). **`404`** if the alias isn't a face you can use; **`409`** if the face has nothing compiled. A face's `default_model` is not used here; to answer on it, send `alice@<default_model>`. |
+| `"alice@gpt-4o-mini"` | Your own face, with the specified model answering. |
+| `"head:socrates@gpt-5.6-terra"` (namespaced) | A face owned by another account (a [system face](/guides/system-faces), or one that was [published or shared with you](/guides/sharing)), addressed as `owner:alias`. Billed to *your* account. **`404`** if the owner or published face doesn't exist. See [System Faces](/guides/system-faces). |
+| `"(alice \| bob)@gpt-4o-mini"` (composite) | A **run-time composite**: a formula over your own faces, composed on the fly. Operators `\| & - ^` and parentheses. Without `@model`, it returns its cause alone, as any face does. See [Synthetic Faces → Run-time composites](/guides/synthetic-faces#run-time-composites-compose-on-the-fly). |
+| `"gpt-4o-mini"` (bare model) | Plain LLM passthrough, no face. |
+
+<Note>
+  The `:` separates an owner account from the face alias. A bare alias (`alice`) only ever resolves your own faces; to use a face owned by another account it must be published, or shared with you, and addressed as `owner:alias` (e.g. `head:socrates`). Include `@<model>` for an answer; the bare handle returns the face's cause alone.
+</Note>
+
+<Note>
+  Model overrides use our own provider keys; no user-stored credentials are required or used. The one exception is a Codex-eligible model at `/v1/responses` for a connected Connect or Pro account, which runs on your ChatGPT subscription (see [Running on a linked ChatGPT plan](#running-on-a-linked-chatgpt-plan)).
+</Note>
+
+---
+
+## The face's cause
+
+Besides the cause, the answering model gets the face's name and the identity details relevant
+to the request, and with `style`, the face's built style for that medium. See
+[what a wrapper sends](/introduction#what-a-wrapper-sends-the-model).
+
+Every wrapped call returns the face's **cause** with the answer: the principal *why* behind
+the face's response in this context. It is marked as the face's, so it never mixes with the
+model's own reasoning:
+
+| endpoint | where |
+|----------|-------|
+| `/v1/chat/completions` | `choices[0].message.cause`. Streamed: the first delta carries `cause`. |
+| `/v1/responses` | The cause, in a `reasoning` item with id `rs_faces_…`, first in `output`, its text in `summary[0].text`. Streamed: the first output item. |
+| `/v1/messages` | The cause, in a `thinking` block with signature `faces-reasoning`, first in `content`. Streamed: content block `0`. |
+
+A reasoning model's own reasoning (`reasoning_content`, OpenAI's `reasoning` items,
+Anthropic's signed `thinking` blocks) is returned separately. On chat, `cause` is the
+face's and `reasoning_content` is the model's.
+
+**No cause, no answer.** If the cause can't be
+built, the request is refused before anything is sent to the model, and **nothing is
+charged**:
+
+| code | when | what to do |
+|------|------|------------|
+| `409` | The face has nothing compiled | Compile something into it. |
+| `422` | The conversation has no message for the face to answer | Fix the request. |
+| `503` + `Retry-After` | Causes are warming up from a cold start (not streamed) | Retry after `Retry-After` seconds. |
+| `503` | The cause failed | Retry. |
+
+A face with **nothing compiled yet** still answers, from its name, its
+[`profile_addendum`](/guides/faces#profile_addendum) and its
+[`basic_facts`](/guides/faces#basic_facts). It returns no cause and charges none. Compile a
+source to get causes.
+
+**The cause alone:** send the bare alias, `"model": "alice"`, and you get the
+cause in that same place and nothing else, as from the [Causes API](/guides/causes) but in this
+endpoint's format: no `content`, no `message` item, no `text`
+block, and no model is called to answer. It works streamed or not, and is charged only
+for the cause. `POST /v1/decisions` does the same with
+[`"model": "alice"`](/guides/decisions#model-forms).
+
+```json
+{
+  "model": "alice",
+  "choices": [{"index": 0, "finish_reason": "stop",
+               "message": {"role": "assistant", "content": null,
+                           "cause": "This is a dishonest request. They want me to vouch for work I haven't even seen..."}}],
+  "usage": {"prompt_tokens": 3077, "completion_tokens": 68, "total_tokens": 3145}
+}
+```
+
+### Send your own cause
+
+With `face@model`, you can supply this turn's cause yourself, in a
+top-level `cause` field (a string, at most 30,000 tokens):
+
+```json
+{"model": "alice@gpt-4o-mini",
+ "cause": "I won't sign something I haven't read; that is how people get burned.",
+ "messages": [{"role": "user", "content": "Can you just sign the proposal?"}]}
+```
+
+The face answers with your cause in place of its own: no cause is generated, and
+**nothing is charged for it**. You pay only for the answering model, or
+nothing if it runs on your ChatGPT subscription. The same `cause` comes back where it
+normally would. It works on all three endpoints. With the face alone (`"model": "alice"`)
+it is a `400`.
+
+### Keep causes in the transcript
+
+**Send each cause back with its assistant turn, where we put it.** Keep the transcript exactly as we returned it:
+
+| endpoint | keep in each assistant turn |
+|----------|-----------------------------|
+| `/v1/chat/completions` | its `cause` (and the model's own `reasoning_content`, if it gave one) |
+| `/v1/responses` | the cause's `reasoning` item (id `rs_faces_…`), before its message |
+| `/v1/messages` | the cause's `thinking` block (signature `faces-reasoning`) |
+
+There's nothing to strip and no special format: send back what we sent you. OpenAI's own
+`reasoning` items and Anthropic's own signed `thinking` blocks pass through untouched. A
+request to a bare model (no face) accepts a transcript with causes in it.
+
+### Limits on a face
+
+A request to a face (`alice`, `alice@model`) takes at most **30,000 tokens per message** and
+**62,000 tokens per request**, on all three endpoints. Over either is a `422` naming the size,
+before any work, so nothing is charged. A bare model (no face) has only that model's own
+context limit.
+
+**What a cause reads.** A cause reads the message it answers and **up to the four turns before
+it**, within **30,000 tokens**. If those do not fit, the oldest of them is cut first; the
+message being answered is never cut. Earlier turns are not read and not billed.
+
+On Connect and Pro, a chat request with `@model` reads within **10,000 tokens** instead. A face
+alone, [`/v1/causes`](/guides/causes) and the [decision endpoints](/guides/decisions) read
+within 30,000 on every plan.
+
+A cause is billed on what it read, plus 1,500 tokens.
+
+The current limits are also at [`GET /v1/rates`](/guides/billing#current-rates) (`limits.chat`):
+`cause_reads_at_most_tokens` and `subscription_cause_reads_at_most_tokens` are the two windows.
+
+---
+
+## When a parameter did not take effect
+
+If your account is linked to a ChatGPT subscription, some requests are routed through
+it. That route does not accept every parameter, and we
+remove the ones it rejects: today `max_output_tokens` and `temperature`.
+
+When that happens the response says so:
+
+```
+x-faces-dropped-params: max_output_tokens,temperature
+```
+
+The header is **absent when nothing was dropped**. It is comma-separated, in a stable order.
+
+Read it rather than guessing: the same request can be routed to the paid API instead,
+where those parameters *are* honoured, and there is no way to tell which route ran until
+the response arrives. If you surface a warning to your users, key it on this header.
+
+## Telling the face what you are writing
+
+If your application already knows
+what it is producing (an email, a text message, a post), say so, and the reply is
+shaped for it.
+
+```json
+{
+  "model": "alice@gpt-4o-mini",
+  "messages": [{"role": "user", "content": "reply to this and keep it short"}],
+  "medium": "email"
+}
+```
+
+`medium` says what the artefact IS: an email, a post,
+speech. It is not a tone or style control.
+
+To apply a face's built style for a medium, send [`style`](/guides/style#3-use-it) instead,
+for example `"style": "email"`, with `"model": "face@model"`. It sets `medium` too; sending a
+different `medium` is a `400`, as is a medium the face has no built style for. It adds roughly
+2,000 to 3,500 input tokens per request, billed as model input; the exact figure is in `usage`.
+
+### Accepted values
+
+| Value | Use for |
+|-------|---------|
+| `email` | Email, where greetings and sign-offs belong |
+| `text message` | SMS, iMessage and similar short exchanges |
+| `social post` | Public posts |
+| `essay` | Long-form prose |
+| `academic paper` | Scholarly writing |
+| `blog post` | Blog and newsletter writing |
+| `legal document` | Contracts and formal binding text |
+| `thread reply` | Forum and comment replies |
+| `conversation` | Speech: transcripts, dictation, interviews, calls |
+| `lecture` | Prepared speech: talks, sermons, keynotes |
+| `other` | Writing that is none of the forms above |
+
+Send one of these exactly (case does not matter). Synonyms are not folded: a value that
+is not in the table (`sms`, `tweet`, `article`, ...) is ignored, and the medium is
+inferred as if you had left it out.
+
+### If you leave it out
+
+Nothing breaks. When you do not declare a medium, we infer one from the message you
+sent. Declare it when you know it; omit it when you genuinely do not.
+
+---
+
+## Streaming
+
+Add `"stream": true` for SSE streaming:
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@gpt-4o-mini",
+    "messages": [{"role": "user", "content": "Tell me about your childhood."}],
+    "stream": true
+  }'
+```
+
+The response is a standard OpenAI-format SSE stream (`data: {"choices":[{"delta":{"content":"..."}}]}\n\n`). With a face, the first chunk's `delta` carries the face's `cause`.
+
+**A streamed request with a face waits for the face's cause, however long it takes.**
+Most turns start streaming within 20 seconds, and a refusal arrives with its real status
+code, as in the table above. If the cause takes longer, the response starts with `200`
+and the stream carries SSE comment lines (`: keep-alive`) until the answer begins. Comments
+are part of the SSE format and every SDK skips them. A
+refusal after that point arrives as one error event in the endpoint's own format, and still
+nothing is charged:
+
+| endpoint | late refusal |
+|----------|--------------|
+| `/v1/chat/completions` | `data: {"error": {"message": "...", "code": 503}}`, then `data: [DONE]` |
+| `/v1/responses` | `event: error` with `{"type": "error", "code": "503", "message": "..."}` |
+| `/v1/messages` | `event: error` with `{"type": "error", "error": {"type": "overloaded_error", "message": "..."}}` |
+
+**A model that refuses a streamed request answers with an error, not an empty stream.**
+An invalid `temperature`, for example, gets the same non-2xx JSON error the request gets
+without `stream`. If the response had already started with keep-alive comments, the
+refusal arrives as the endpoint's error event above, carrying the model's status.
+
+A request that is not streamed has a time limit instead, and past it gets a `503` with
+`Retry-After`. If your client can stream, stream.
+
+---
+
+## Multi-turn conversations
+
+Pass the full message history as you would with any OpenAI-compatible client:
+
+```json
+{
+  "model": "alice@gpt-4o-mini",
+  "messages": [
+    {"role": "user", "content": "What city do you live in?"},
+    {"role": "assistant", "content": "I live in Berlin."},
+    {"role": "user", "content": "What neighborhood?"}
+  ]
+}
+```
+
+With a face, all three endpoints accept `session` and `compaction`, to group turns and compact them: see [Sessions](/guides/sessions).
+
+---
+
+## User preferences
+
+Set account-level defaults via the preferences endpoint:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/user/preferences \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "default_model": "gpt-5.6-terra",
+    "api_fallback": true
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `default_model` | string | Default LLM model inherited by newly created faces. Must be a valid model from `/v1/models`. |
+| `api_fallback` | bool | Allow fallback to paid system keys when OAuth fails (default: `false`). Always `true` on Free, which has no ChatGPT route: setting `false` there is a `422`, `oauth_only_unavailable`. |
+| `auto_style` | `"on"` \| `"off"` \| `"default"` | Build each face's style automatically once it has enough writing in a medium. `"default"` follows the plan: on for Connect, off for Free. See [Automatic builds](/guides/style#automatic-builds). |
+| `auto_style_thresholds` | object | `{medium: words}` overrides for when an automatic build runs; `null` resets one medium. Minimum 500. |
+
+Read current preferences:
+
+```bash
+curl https://api.faces.sh/v1/user/preferences \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+The response reports `auto_style` as a boolean, meaning whether it is running for this
+account now. Alongside it, `auto_style_setting` is what was stored (`null` means the
+plan's default), and `auto_style_thresholds` lists every medium with its defaults
+filled in.
+
+---
+
+## Supported models
+
+```bash
+curl https://api.faces.sh/v1/models \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Returns every model you can name in the `model` field, **once each**, with its price. Each model object includes:
+
+| Field | Description |
+|-------|-------------|
+| `id` | The model's one public id: the name its lab gives it (`gpt-5.2`, `claude-opus-5`, `glm-5-3-flash`). |
+| `provider`, `owned_by` | The **lab** that made the model (`openai`, `anthropic`, `xai`, `qwen`, `z-ai`, `moonshot`, ...). The same value under two names; `owned_by` is OpenAI's. Which service runs the model is ours to choose and is never shown. |
+| `endpoint` | The model's native endpoint, as a path (`/v1/chat/completions`, `/v1/responses`, `/v1/messages`). All chat models also work at `/v1/chat/completions` (OpenAI shape); only `*-pro` models are `/v1/responses`-only. |
+| `endpoints` | Every path that serves the model; `endpoint` is the first. A decision model lists `/v1/decisions` and `/v1/systemone`: both serve every decision model, and you pick by request format. |
+| `kind` | What the model is for: `chat` (chat, `/v1/responses`, `/v1/messages`), `image`, `transcription`, `decision` (`/v1/decisions` and `/v1/systemone`), `cause` (`/v1/causes`), or `compile` (the compile `/make` routes). Offer only `kind: "chat"` models in a chat model picker. |
+| `codex_eligible` | `true` if the model is free for connected Connect-plan users via `/v1/responses`. Prefer `/v1/responses` for these when the user is connected. |
+| `input_cost_per_million_tokens`, `output_cost_per_million_tokens` | What a call costs, whichever service runs it. |
+| `added_tokens_per_request` | Tokens added to each request's input before pricing, or `null`. The cause model adds 1,500. |
+| `markup_applies` | `false` when the listed price is what is charged, with no markup on top. |
+| `token_basis` | What the price counts, when it is not the request: `source` for the compile model, which prices the source text compiled. |
+| `included_tokens_per_month` | Tokens each plan includes per month before the price applies, by plan (`free`, `connect`, `pro`). |
+
+Drive your model picker from this endpoint rather than hardcoding a list.
+
+Without `kind`, only `chat` models are listed. `?kind=` takes one kind or a comma-separated
+list of `chat`, `image`, `transcription`, `decision`, `cause` and `compile`, for example
+`?kind=chat,image`; `?kind=all` lists every kind. An unknown value is a `422` that lists the
+accepted ones; `all` cannot be combined with another kind. The
+[decision models](/guides/decisions#model-forms) are listed with `?kind=decision`:
+
+```bash
+curl "https://api.faces.sh/v1/models?kind=decision"
+```
+
+```json
+{"object": "list", "data": [
+  {"id": "jev-latest",   "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.042, "output_cost_per_million_tokens": 0.0},
+  {"id": "clef",         "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.24,  "output_cost_per_million_tokens": 0.0},
+  {"id": "clef-flash",   "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.038, "output_cost_per_million_tokens": 0.0}
+]}
+```
+
+The [cause model](/guides/causes) is listed with `?kind=cause`:
+
+```json
+{"object": "list", "data": [
+  {"id": "faces-causes-latest", "provider": "faces", "endpoint": "/v1/causes", "endpoints": ["/v1/causes"], "kind": "cause",
+   "input_cost_per_million_tokens": 0.75, "output_cost_per_million_tokens": 0.0,
+   "added_tokens_per_request": 1500, "markup_applies": false}
+]}
+```
+
+The compile model is listed with `?kind=compile`. It is priced per million source tokens
+compiled, after the plan's monthly allowance. `rush_input_cost_per_million_tokens` is the
+price of a [rush](/guides/compile#when-a-compile-starts) compile:
+
+```json
+{"object": "list", "data": [
+  {"id": "faces-compile-latest", "provider": "faces", "kind": "compile",
+   "endpoint": "/v1/compile/documents/{doc_id}/make",
+   "endpoints": ["/v1/compile/documents/{doc_id}/make", "/v1/compile/threads/{thread_id}/make"],
+   "input_cost_per_million_tokens": 25.0, "output_cost_per_million_tokens": 0.0,
+   "token_basis": "source", "markup_applies": false,
+   "included_tokens_per_month": {"free": 0, "connect": 250000, "pro": 1000000},
+   "rush_input_cost_per_million_tokens": 30.0}
+]}
+```
+
+Trimmed: each entry also has the fields in the table above.
+
+---
+
+## Using with OpenAI SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="YOUR_API_KEY",
+    base_url="https://api.faces.sh/v1"
+)
+
+response = client.chat.completions.create(
+    model="alice@gpt-4o-mini",
+    messages=[{"role": "user", "content": "What matters most to you?"}]
+)
+print(response.choices[0].message.content)
+# the face's cause, a Faces extension field:
+print(response.choices[0].message.model_extra.get("cause"))
+```
+
+---
+
+## Running on a linked ChatGPT plan
+
+On Connect and Pro, with a ChatGPT account [linked](/guides/oauth), a Codex-eligible model (`codex_eligible: true` in [`/v1/models`](#supported-models)) runs on the ChatGPT plan, **only at `POST /v1/responses`**. If ChatGPT is unavailable, the request fails, or is paid from credits when `api_fallback` is on.
+
+<Warning>
+  Calling a Codex-eligible model at **`/v1/chat/completions`** does **not** run on the ChatGPT plan. For a connected Connect or Pro user, the API returns a `409` with `detail.error = "use_responses_for_free_oauth"` instead of charging. **Send Codex-eligible models to `/v1/responses`**: they work there for everyone, on the ChatGPT plan when linked and from credits otherwise. The model's `endpoint` in [`/v1/models`](#supported-models) already says so.
+</Warning>
+
+<Note>
+  **Request shape:** `/v1/responses` is the native OpenAI Responses API: it takes **`input`**, not `messages`. Sending `messages` instead returns `400 "Missing required parameter: 'input'."`. `input` accepts either a plain string (`"input": "hi"`) or an array of turns (`"input": [{"role": "user", "content": "hi"}]`) for multi-turn history. The system prompt goes in `instructions`; for `alias@model` requests you don't need to set anything for the face. The response is the Responses shape (`output` / `output_text` / reasoning items).
+</Note>
+
+To prevent unexpected charges at `/v1/responses`, pass `"oauth_only": true` in the request body:
+
+```bash
+curl -X POST https://api.faces.sh/v1/responses \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice@gpt-5.6-terra",
+    "input": [{"role": "user", "content": "Hi!"}],
+    "oauth_only": true
+  }'
+```
+
+When `oauth_only` is true and OAuth is unavailable, the request fails with an error instead of falling back to the paid path. It is for Connect and Pro, the plans with a ChatGPT route; on Free it is a `422`, `oauth_only_unavailable`, and nothing is charged.
+
+### Response headers
+
+Every response that calls a model includes these headers (a bare alias, which returns the face's cause alone, has none):
+
+| Header | Example | Description |
+|--------|---------|-------------|
+| `X-Faces-Provider` | `openai` | The lab that made the model (the same value as `provider` in `/v1/models`) |
+| `X-Faces-Billing` | `oauth` or `credits` | `oauth`: your linked ChatGPT subscription paid, so it cost you nothing. `credits`: billed to your balance. |
+| `X-Faces-Cost-USD` | `0.00` or `0.0035` | Cost charged to your account for this request |
+
+`X-Faces-Billing` is the one to branch on: `oauth` means the call was free.
+
+---
+
+## Error codes
+
+| Code | Meaning |
+|------|---------|
+| `402` | Insufficient credits |
+| `429` | The account's per-minute [rate limit](/errors#rate-limits) (`Retry-After` says when to retry), or on Connect or Pro, the plan's cause [allowance](/guides/billing#allowances) is used and `api_fallback` is off. The message names the limit. Nothing was charged |
+| `404` | Face not found or not owned by you |
+| `409` | `use_responses_for_free_oauth`: connected Connect or Pro user called a Codex-eligible model at `/chat/completions`; use `/v1/responses` (free) or set `api_fallback: true` |
+| `409` | The face has nothing compiled: compile something into it (see [The face's cause](#the-faces-cause)) |
+| `503` | Causes are warming up (`Retry-After`), or the cause failed: retry. Nothing was charged |
+| `422` | `oauth_only_unavailable`: `oauth_only` on the Free plan. Nothing was charged |
+| `422` | Invalid request body, a face request over its [size limits](#limits-on-a-face), or an OAuth failure at `/v1/responses` (see [Errors when ChatGPT refuses](/guides/oauth#errors-when-chatgpt-refuses)) |

@@ -1,0 +1,155 @@
+---
+title: Synthetic Faces
+description: Compose faces from boolean expressions over existing faces.
+---
+
+# Synthetic Faces
+
+A synthetic face is defined by a boolean formula over existing faces. It is assembled on the fly: no separate compilation, no extra training.
+
+---
+
+## Formula syntax
+
+| Operator | Meaning |
+|----------|---------|
+| `a \| b` | Union |
+| `a & b` | Intersection |
+| `a - b` | Difference |
+| `a ^ b` | Symmetric difference |
+
+Parentheses are supported for grouping:
+
+```
+(alice | bob) & mentor
+alice | (expert - academic)
+```
+
+---
+
+## Create a synthetic face
+
+Pass a `formula` instead of uploading documents. `name` is required, as for any face:
+
+```bash
+curl -X POST https://api.faces.sh/v1/faces \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alias": "alice-and-bob",
+    "name": "Alice and Bob",
+    "formula": "alice | bob"
+  }'
+```
+
+The formula references faces by their `alias`. All referenced faces must:
+- Be owned by you
+- Be concrete (non-synthetic) faces
+
+Nesting synthetic faces (referencing a face that itself has a formula) is not supported and returns `422`.
+
+---
+
+## Update the formula
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"formula": "alice & mentor"}'
+```
+
+Changes take effect immediately on the next chat request.
+
+`{"formula": ""}` removes the formula: the face reads `"formula": null` and is an ordinary face again.
+
+A formula can be added only to a face with no sources or compiled content of its own,
+and that no other synthetic face uses as an operand. Anything else is a `409` and the
+face is unchanged: create a new face with the formula instead.
+
+---
+
+## Chat with a synthetic face
+
+The same as chatting with any face, with one difference: name a model with `@model`.
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "alice-and-bob@claude-sonnet-4-6",
+    "messages": [{"role": "user", "content": "How do you approach creative problems?"}]
+  }'
+```
+
+The bare alias with no `@model` returns `409`. This is the same rule as for
+[run-time composites](#run-time-composites-compose-on-the-fly).
+
+---
+
+## Validation rules
+
+- All referenced aliases must be owned by you at create/update time.
+- Referenced faces must be concrete (not synthetic themselves).
+- The formula must be a valid boolean expression using `|`, `&`, `-`, `^`, parentheses, and valid aliases.
+
+Invalid formulas return `422` with a description of the problem.
+
+---
+
+## Use cases
+
+- **Union**: `designer | engineer`
+- **Intersection**: `alice & mentor`
+- **Difference**: `senior-dev - junior-dev`
+- **A/B testing**: compare `alice | bob` with `alice & bob`.
+
+---
+
+## Run-time composites (compose on the fly)
+
+You don't have to create a synthetic face first. You can pass a formula **directly in the `model` field** of a chat request and have it composed for that one call:
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "(alice | bob)@claude-sonnet-4-6",
+    "messages": [{"role": "user", "content": "How do you approach creative problems?"}]
+  }'
+```
+
+The same operators apply (`|`, `&`, `-`, `^`, parentheses). A composite works wherever a face does: chat (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), [`/v1/causes`](/guides/causes), [`/v1/decisions` and `/v1/systemone`](/guides/decisions).
+
+Behaviorally a run-time composite is identical to a persisted one of the same operands, and there's no meaningful latency difference. Persist when you'll reuse it (and want to name it); compose on the fly for one-off blends.
+
+### Rules
+
+- **Without `@model`**, `(alice | bob)` returns its cause alone, as any face does.
+- **Operands must be concrete faces**, same as persisted formulas. A bare alias is one of your own faces. Unknown/unowned operand → `404`; referencing a synthetic face as an operand → `422` (no nesting).
+- **`owner:alias` operands work in a run-time formula**, for a face you can read that someone else owns, such as a published one: `(alice | head:socrates)@model`. A face you cannot read → `404`. A persisted formula takes only your own faces by bare alias.
+- **Difference needs spaces:** write `alice - bob` (a dash *between* characters, like `news-bot`, is read as part of an alias). This matches persisted-formula behavior.
+
+### Identity: the first operand
+
+A run-time composite answers as its **first (leftmost) operand**, taking that face's name and any [`profile_addendum`](/guides/faces#profile_addendum):
+
+```
+(alice | bob)@model   →  answers as Alice, combined with Bob
+(bob | alice)@model   →  answers as Bob, combined with Alice
+```
+
+If you want a **custom** name or system prompt for the blend (rather than inheriting the first operand's), create a persisted synthetic face: you name it and set its `profile_addendum` at creation.
+
+### An empty result
+
+A formula whose result is empty is a `422`, and nothing is charged:
+
+```json
+{"detail": {"error_code": "empty_composite", "message": "the intersection between these two faces is null"}}
+```
+
+With more than two faces the message is "the intersection between these faces is null". An
+empty `-` or `^` result says "the result of this formula is null".

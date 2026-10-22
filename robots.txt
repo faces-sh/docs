@@ -1,0 +1,7 @@
+User-agent: *
+Content-Signal: ai-train=no, search=yes, ai-input=yes
+Disallow: /cdn-cgi/
+Allow: /_next/image
+Disallow: /_next/
+
+Sitemap: https://docs.faces.sh/sitemap.xml

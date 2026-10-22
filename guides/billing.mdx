@@ -1,0 +1,444 @@
+---
+title: Billing
+description: Credits, subscription plans, allowances, and Stripe payments.
+---
+
+# Billing
+
+Faces uses a credit-based billing system. Chat completions are billed against your credit balance in real time. Each plan's allowances are shared across all your faces.
+
+---
+
+## Check your balance
+
+```bash
+curl https://api.faces.sh/v1/billing/balance \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "iam_id": "b2b97838-...",
+  "balance_usd": 12.45,
+  "frozen": false,
+  "has_payment_method": true,
+  "is_active": true
+}
+```
+
+---
+
+## Subscription plans
+
+| Plan | Price | Compile allowance | Cause allowance | OAuth routing |
+|------|-------|-------------------|-----------------|---------------|
+| Free | $0 | none: pay as you go | none: pay as you go |  |
+| Connect | $17/mo | 250k source tokens/month | 10M tokens/month | ChatGPT (codex models via `/v1/responses`) |
+| Pro | $49/mo | 1M source tokens/month | 25M tokens/month | ChatGPT (codex models via `/v1/responses`) |
+
+A subscription is an **allowance**, not a fee per request: compiling and a face's
+[`cause`](/guides/chat#the-faces-cause) are covered up to the plan's limits (see
+[Allowances](#allowances)). The answering model (`@model`) is paid as it goes on every plan,
+at the model's listed price plus 5%, unless it runs free on your ChatGPT subscription.
+
+On the **Free** plan everything is paid as it goes, from your credit balance, at the
+[pay-as-you-go rates](#pay-as-you-go-rates).
+
+On **Connect** and **Pro**, you link your ChatGPT account via OAuth (device-code flow). Codex-eligible models (`codex_eligible: true` in [`/v1/models`](/guides/chat#supported-models)) run free through your ChatGPT subscription **at `POST /v1/responses`**. Other models, or codex models called at `/v1/chat/completions`, are paid from your credits at the model's listed price plus 5%. If your ChatGPT connection is unavailable (e.g., you hit OpenAI's limits), `/v1/responses` requests fall back to credits only when `api_fallback` is enabled, otherwise they return an error rather than charging you. See [Connect ChatGPT](/guides/oauth) for details.
+
+### Get current subscription
+
+```bash
+curl https://api.faces.sh/v1/billing/subscription \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "plan": "connect",
+  "status": "active",
+  "face_count": 4,
+  "face_limit": null,
+  "current_period_end": "2026-06-05T13:13:23",
+  "is_active": true,
+  "cancel_at_period_end": false,
+  "allowances": {
+    "cause_5h":      {"limit": 640000,   "used": 12400,   "remaining": 627600,  "resets_at": null},
+    "cause_week":    {"limit": 2500000,  "used": 210000,  "remaining": 2290000, "resets_at": "2026-10-22T13:13:23"},
+    "cause_month":   {"limit": 10000000, "used": 640000,  "remaining": 9360000, "resets_at": "2026-11-05T13:13:23"},
+    "compile_month": {"limit": 250000,  "used": 83600,   "remaining": 166400,  "resets_at": "2026-11-05T13:13:23"}
+  },
+  "rates": {
+    "cause_usd_per_million_input_tokens": 0.75,
+    "cause_added_tokens": 1500,
+    "compile_usd_per_million_source_tokens": 25.0,
+    "compile_rush_usd_per_million_source_tokens": 30.0,
+    "model_markup": 0.05
+  }
+}
+```
+
+`cancel_at_period_end` is `true` once the user has called the cancel endpoint and is still inside the paid period; use it to render "Connect ends on `current_period_end`" UI. The plan stays `"connect"` and `status` stays `"active"` until period end; only `cancel_at_period_end` flips.
+
+`allowances` is `null` on the Free plan. `rates` are the [pay-as-you-go rates](#pay-as-you-go-rates). To read them without a key, use [`GET /v1/rates`](#current-rates) rather than hard-coding them.
+
+### Allowances
+
+| | Connect | Pro |
+|---|---|---|
+| Compile, per month | 250k source tokens | 1M source tokens |
+| Cause, per month | 10M tokens | 25M tokens |
+| Cause, per week | 2.5M | 6.25M |
+| Cause, per 5 hours (rolling) | 640k | 1.6M |
+
+**What counts:**
+
+- **Compile:** the source's tokens, **each time** it is compiled. A recompile, or a
+  decompile followed by a compile, counts again.
+- **Cause:** the tokens a face's `cause` [read](/guides/chat#limits-on-a-face), **plus 1,500** per cause.
+- **The answering model** (`@model`, or a decision model) is not part of the allowance:
+  it is paid at the model's listed price plus 5%, or runs free on your ChatGPT subscription.
+
+**Resets:** the month is your subscription's 30-day window; weeks are 7-day blocks of it;
+the 5-hour window rolls.
+
+**When a limit is reached,** your `api_fallback` preference decides:
+
+- **on:** the work carries on and is paid from your credits at the pay-as-you-go rates.
+  With no credit it is a `402`.
+- **off:** it is refused with `429`, and nothing is charged. The message names the limit
+  and when it resets. A compile is refused before it starts.
+
+### Current rates
+
+Every rate, plan price, allowance, input limit and rate limit on this page, as the API bills and enforces
+them, is at one public endpoint. No API key is needed. Read them from there rather
+than hard-coding them:
+
+```bash
+curl https://api.faces.sh/v1/rates
+```
+
+```json
+{
+  "object": "rates",
+  "currency": "usd",
+  "cause": {
+    "usd_per_million_tokens": 0.75,
+    "added_tokens_per_cause": 1500
+  },
+  "compile": {
+    "usd_per_million_source_tokens": 25.0,
+    "rush_usd_per_million_source_tokens": 30.0
+  },
+  "models": {
+    "markup": 0.05,
+    "prices": "/v1/models"
+  },
+  "plans": {
+    "free": {
+      "usd_per_month": 0,
+      "allowances": null
+    },
+    "connect": {
+      "usd_per_month": 17,
+      "allowances": {
+        "cause_tokens_per_5_hours": 640000,
+        "cause_tokens_per_week": 2500000,
+        "cause_tokens_per_month": 10000000,
+        "compile_source_tokens_per_month": 250000
+      }
+    },
+    "pro": {
+      "usd_per_month": 49,
+      "allowances": {
+        "cause_tokens_per_5_hours": 1600000,
+        "cause_tokens_per_week": 6250000,
+        "cause_tokens_per_month": 25000000,
+        "compile_source_tokens_per_month": 1000000
+      }
+    }
+  },
+  "limits": {
+    "chat": {
+      "max_message_tokens": 30000,
+      "max_request_tokens": 62000,
+      "cause_reads_at_most_tokens": 30000,
+      "subscription_cause_reads_at_most_tokens": 10000
+    },
+    "decisions": {
+      "jev-latest": {
+        "max_state_plus_longest_question_tokens": 30000,
+        "max_request_tokens": 62000
+      },
+      "clef": {
+        "max_state_plus_longest_question_tokens": 30000,
+        "max_request_tokens": 63500
+      },
+      "clef-flash": {
+        "max_state_plus_longest_question_tokens": 22500,
+        "max_request_tokens": 22500
+      },
+      "face": {
+        "max_state_plus_longest_question_tokens": 30000,
+        "max_request_tokens": 62000
+      }
+    },
+    "requests_per_minute": {
+      "free": 30,
+      "connect": 60,
+      "pro": 120
+    }
+  }
+}
+```
+
+Per-model token prices are in [`GET /v1/models`](/guides/chat#supported-models); `models.markup` is what is
+added to them. `limits.requests_per_minute` is the per-account [rate limit](/errors#rate-limits) by
+plan. Your own usage against the allowances is in `GET /v1/billing/subscription`.
+
+### Pay-as-you-go rates
+
+On the Free plan, and past a subscription's limits with `api_fallback` on:
+
+| | rate |
+|---|---|
+| A face's `cause` ([chat](/guides/chat#the-faces-cause), [decisions](/guides/decisions), [causes](/guides/causes)) | **$0.75 per million tokens**: the tokens it [read](/guides/chat#limits-on-a-face) **plus 1,500** |
+| Compile | **$25 per million source tokens** |
+| A [rush](/guides/compile#when-a-compile-starts) compile | the rush rate: `compile.rush_usd_per_million_source_tokens` in [`GET /v1/rates`](#current-rates) |
+| Any model you name (`@model`, a decision model) | the model's listed price **+ 5%** |
+
+### Subscribe
+
+```bash
+curl -X POST "https://api.faces.sh/v1/billing/checkout?plan=pro" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`plan` is `connect` or `pro`. Returns a `checkout_url` to redirect the user to Stripe.
+After payment, the subscription is activated automatically. **Promotion codes** can be
+entered on the Stripe checkout page; a code can make a plan free for a while and can add
+credits to your balance once the subscription starts.
+
+Checkout is for a **first** subscription. If you already subscribe it answers `409`;
+switch plans instead.
+
+### Switch between Connect and Pro
+
+```bash
+curl -X POST "https://api.faces.sh/v1/billing/subscription/plan?plan=pro" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Changes your existing subscription in place, prorated, and the new plan's allowances apply
+at once. Returns `{"plan", "previous_plan", "status"}`. Without a subscription it is a
+`409`: use checkout.
+
+### Cancel subscription
+
+```bash
+curl -X POST https://api.faces.sh/v1/billing/subscription/cancel \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{ "canceled_at_period_end": true, "current_period_end": "2026-06-05T13:13:23" }
+```
+
+Cancels at the end of the current billing period. The user keeps Connect access until `current_period_end`; at that moment the account reverts to Free automatically. Subsequent `GET /v1/billing/subscription` calls return `cancel_at_period_end: true` until the period ends.
+
+### Reactivate subscription
+
+If the user changes their mind before the period ends, undo the cancellation. Same subscription, same period end, **no new charge**: auto-renewal simply resumes.
+
+```bash
+curl -X POST https://api.faces.sh/v1/billing/subscription/reactivate \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{ "cancel_at_period_end": false, "current_period_end": "2026-06-05T13:13:23" }
+```
+
+Returns **`400`** if the user has no Stripe subscription, or if the subscription is not currently pending cancel.
+
+---
+
+## Payment methods
+
+An account can save several cards. One of them is the **default**: your subscription renews on it, and a top-up charges it unless you name another card. The card you subscribe with becomes the default.
+
+### Add a card
+
+```bash
+curl -X POST https://api.faces.sh/v1/billing/card-setup \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"make_default": false}'
+```
+
+Returns a `checkout_url`: send the user there to enter the card. Nothing is charged. The body is optional:
+
+- `make_default` defaults to `true`, so the new card becomes the default unless you send `false`.
+- An account's first card is always the default.
+
+The card shows up a few seconds after the user finishes.
+
+### List cards
+
+```bash
+curl https://api.faces.sh/v1/billing/payment-methods \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"default_payment_method": "pm_1Q...",
+ "payment_methods": [
+   {"id": "pm_1Q...", "brand": "visa", "last4": "4242", "exp_month": 12, "exp_year": 2030, "is_default": true},
+   {"id": "pm_1R...", "brand": "mastercard", "last4": "4444", "exp_month": 3, "exp_year": 2029, "is_default": false}]}
+```
+
+The newest card comes first. `GET /v1/billing/balance` still returns `has_payment_method`, which says whether there is a default card.
+
+### Change the default
+
+```bash
+curl -X POST https://api.faces.sh/v1/billing/payment-methods/pm_1R.../default \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+The next renewal, and every top-up that names no card, charges this card. Returns the same shape as the list.
+
+### Remove a card
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/billing/payment-methods/pm_1R... \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+- **Removing the default** makes the newest remaining card the default.
+- **The last card can't be removed** while a paid subscription renews on it. That returns **`409`**: add another card first, or cancel the subscription.
+- **A card that isn't yours** returns **`404`**, for both changing the default and removing.
+
+Returns the same shape as the list.
+
+---
+
+## Top up credits
+
+```bash
+curl -X POST https://api.faces.sh/v1/billing/topup \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"amount_usd": 20.00, "payment_method_id": "pm_1R..."}'
+```
+
+This charges the default card, or the saved card in `payment_method_id` if you send one. The minimum is $1.00, in whole cents.
+
+- **No card saved:** **`402`**, `No payment method on file. Add a card first.`
+- **`payment_method_id` isn't one of the account's cards:** **`404`**.
+- **Same amount again within two minutes:** **`409`**. Send `"allow_duplicate": true` to buy it again on purpose:
+
+  ```json
+  {"detail": {"error_code": "duplicate_topup", "message": "...", "repeat_with": {"allow_duplicate": true}}}
+  ```
+
+---
+
+## LLM pricing
+
+```bash
+curl https://api.faces.sh/v1/billing/llm-costs \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Returns the current pricing table for all supported models, including per-million-token rates for standard models and per-hour rates for time-based services (e.g. audio transcription).
+
+| Field | Meaning |
+| --- | --- |
+| `lab` | Who made the model. |
+| `input_cost_per_million`, `output_cost_per_million` | The model's listed price, **before** the markup. |
+| `markup_rate` | What a request is charged on top of those prices: `0.05` is 5%. |
+| `prices_include_markup` | `false`: the listed prices do not include `markup_rate`. |
+
+---
+
+## Usage history
+
+```bash
+curl https://api.faces.sh/v1/billing/usage \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Returns a breakdown of token usage and costs. Supports query parameters:
+- `from_date` / `to_date`: filter by date range (ISO dates, inclusive)
+- `group_by`: group results by `model_iam_id` (the default), `llm_model`, `api_key_id`, `model_username` (face alias) or `date`
+- `api_key_id`, `model_username`, `model_iam_id`: filter to one value
+- `llm_model`: filter to one model id, as `group_by=llm_model` reports it
+
+Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`](/guides/chat#supported-models) lists. A face's cause appears as `faces-causes-latest`, and compiling as `faces-compile-latest`, a rush's extra charge included. Any id from the grouped response filters to that id's usage.
+
+Each row, and `totals`, adds up: `provider_cost_usd + markup_usd = total_cost_usd`, the
+amount deducted.
+
+## Invoices
+
+```bash
+curl https://api.faces.sh/v1/billing/invoices \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Returns a list of top-up transactions with amounts and Stripe receipt URLs.
+
+## How chat costs are calculated
+
+A chat with a face has two parts: the face's cause, covered by your allowance or paid
+at $0.75 per million tokens, the tokens it [read](/guides/chat#limits-on-a-face) plus 1,500 (see [Allowances](#allowances)),
+and the answering
+model, which deducts from your credit balance:
+
+```
+cost = ( (prompt_tokens / 1,000,000) × input_price
+       + (completion_tokens / 1,000,000) × output_price )
+     × (1 + markup_rate)
+```
+
+The exact rate is `rates.model_markup` in
+[`GET /v1/billing/subscription`](#get-current-subscription) (`0.05` today); the prices are in
+[`GET /v1/models`](/guides/chat#supported-models).
+
+---
+
+## Credit account states
+
+| State | Effect |
+|-------|--------|
+| `balance > 0` | Normal operation |
+| `balance = 0` | Chat requests return `402 Payment Required` |
+| `frozen = true` | All requests return `402` regardless of balance |
+
+---
+
+## Compile thread billing errors
+
+When starting or continuing an interview thread, a `402` is returned if no payment source is available. The response body includes structured fields:
+
+```json
+{
+  "detail": {
+    "message": "Connect your OpenAI account, or add credits to start an interview.",
+    "error_code": "compile_payment_required",
+    "needs_oauth": true,
+    "needs_credits": true,
+    "plan": "connect"
+  }
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `needs_oauth` | User should link their OpenAI account (Connect plan only) |
+| `needs_credits` | User should top up their credit balance |
+| `plan` | The user's current plan |
+
+A `502` is returned if the upstream LLM provider fails.

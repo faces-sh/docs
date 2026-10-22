@@ -1,0 +1,220 @@
+---
+title: Authentication
+description: JWT and API key authentication, budget caps, and face/model restrictions.
+---
+
+# Authentication
+
+The Faces API accepts two authentication methods: **JWT tokens** (issued at login, and the only credential that can manage API keys) and **API keys** (for long-lived application access). Both are passed as a `Bearer` token in the `Authorization` header.
+
+```
+Authorization: Bearer <token>
+```
+
+---
+
+## JWT tokens
+
+JWTs are issued by `/auth/register-email` and `/auth/login`. They expire **24 hours** after they are issued; [refresh](#refresh) one before then, or log in again.
+
+### Register
+
+```bash
+curl -X POST https://api.faces.sh/auth/register-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Alice",
+    "email": "alice@example.com",
+    "password": "Your-secure-password-1",
+    "username": "alice"
+  }'
+```
+
+The password needs 8 to 64 characters, with at least one uppercase letter, one lowercase letter and one digit. The response has the same shape as login's below, plus `activation_required` and `activation_checkout_url`: a new account starts with a $0 balance, and that URL adds its first credit. See the [Quickstart](/quickstart#1-register).
+
+### Login
+
+```bash
+curl -X POST https://api.faces.sh/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "alice@example.com",
+    "password": "Your-secure-password-1"
+  }'
+```
+
+`email` also accepts your username.
+
+Response:
+```json
+{
+  "success": true,
+  "messages": [],
+  "data": {
+    "token": "eyJ...",
+    "user_id": "311d4676-effb-4b20-..."
+  },
+  "error": null,
+  "meta": null
+}
+```
+
+A wrong email or password answers `401` with `{"detail": "Invalid email or password"}`.
+
+### Refresh
+
+```bash
+curl -X POST https://api.faces.sh/auth/refresh \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+Returns a fresh JWT, in the same shape as login, without requiring re-login. The JWT you send must still be valid: an expired one answers `401`, and you must log in again.
+
+### Who am I
+
+```bash
+curl https://api.faces.sh/auth/me \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+`data` holds `user_id`, `username`, `email` and `name`. Your own face is
+always [`me`](/guides/people#your-me-face).
+
+---
+
+## API keys
+
+API keys are the recommended method for production applications. They support optional budget caps, expiration, and restrictions on which faces and models can be used.
+
+Managing keys (creating, listing, updating and revoking them) needs a **JWT**. An API key sent to these routes answers `401`.
+
+### Create an API key
+
+```bash
+curl -X POST https://api.faces.sh/v1/auth/api-keys \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "production",
+    "budget_usd": 50.00,
+    "allowed_face_ids": ["alice", "bob"],
+    "allowed_llm_models": ["gpt-4o-mini"]
+  }'
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Human-readable label. At most 255 characters. |
+| `budget_usd` | float (optional) | Hard spend cap in USD, from `0` to `999999`. Requests fail with `402` once exhausted. Null = unlimited. |
+| `expires_in_days` | int (optional) | Number of days until the key expires, from `0` to `36500`. `0` or null = never expires. |
+| `scopes` | array (optional) | Permission scopes. Default: `["v1:*"]` (full access). |
+| `allowed_face_ids` | array (optional) | Restrict the key to specific face aliases. Null = all owned faces. |
+| `allowed_llm_models` | array (optional) | Restrict the key to specific LLM models. Null = all models. |
+
+A value outside any of those ranges, or a field not in the table, is refused with a
+`422` naming it:
+
+```json
+{ "detail": "body → name: String should have at most 255 characters" }
+```
+
+The response includes the full API key **once**; it cannot be retrieved again:
+
+```json
+{
+  "id": "a1b2c3d4-...",
+  "key": "sk-faces-abc123...",
+  "key_prefix": "sk-faces-abc12345",
+  "name": "production"
+}
+```
+
+### List API keys
+
+```bash
+curl https://api.faces.sh/v1/auth/api-keys \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+### Update an API key
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/auth/api-keys/KEY_ID \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "renamed-key" }'
+```
+
+Takes `name`, `budget_usd`, `reset_spent`, `allowed_face_ids`, `allowed_llm_models`,
+and the three `clear_*` flags. Nothing else: a field this route does not act on is
+refused with a `422` naming it, rather than accepted and ignored.
+
+<Note>
+  **A key's expiry is fixed when the key is made.** There is no way to change it.
+  To change when a key
+  expires, revoke it and create a new one.
+</Note>
+
+### Revoke an API key
+
+```bash
+curl -X DELETE https://api.faces.sh/v1/auth/api-keys/KEY_ID \
+  -H "Authorization: Bearer YOUR_JWT"
+```
+
+---
+
+## Budget caps
+
+When a budget cap is set on an API key, every chat request checks the remaining budget before proceeding. Once the key has spent its cap, the API returns:
+
+```json
+HTTP 402 Payment Required
+{
+  "detail": "API key budget exhausted ($50.0000 / $50.0000 USD). Increase the budget or reset it via PATCH /auth/api-keys/{key_id}."
+}
+```
+
+Raise `budget_usd`, or send `"reset_spent": true`, with [Update an API key](#update-an-api-key).
+
+The account's own balance is checked too. When it is empty or frozen, any key gets a `402` naming the balance rather than the key, such as `"Insufficient credit balance. Please top up your account to make requests."` Top up credits via the [billing API](/guides/billing) or the dashboard.
+
+---
+
+## Face and model restrictions
+
+The `allowed_face_ids` field restricts which faces can be used with a key. Pass face aliases (not UUIDs):
+
+```json
+{ "allowed_face_ids": ["alice", "bob"] }
+```
+
+The `allowed_llm_models` field restricts which LLM models can be used:
+
+```json
+{ "allowed_llm_models": ["gpt-4o-mini", "claude-sonnet-4-20250514"] }
+```
+
+Requests using a face or model not in the allowed list are rejected with `403 Forbidden`.
+
+Null or omitted fields allow all faces/models, appropriate for unrestricted keys.
+
+---
+
+## Error codes
+
+| Code | Meaning |
+|------|---------|
+| `401` | Token missing, malformed, expired or revoked, an API key sent where a JWT is required, or the account is [closed](/errors#closed-accounts) |
+| `402` | Insufficient credits, or the key's budget cap is spent |
+| `403` | Face or model not allowed for this key |
+| `404` | No such key, **including a key that is not yours, and a key id that is not a valid id** |
+| `422` | A field is missing, not accepted by the route, or outside the limits above |
+
+The `/auth/*` routes answer bad or missing credentials the same way, with `401` and `WWW-Authenticate: Bearer`. A wrong *current* password on `PATCH /auth/me` or `/auth/change-password` is `403`.
+
+A key belonging to someone else answers `404`, not `403`, and so does a key id that is
+not a UUID. Neither tells you whether the key exists.
+
+See [Errors](/errors) for the codes the rest of the API uses, which of them are worth
+retrying, and the reference code to quote when you report a failure.

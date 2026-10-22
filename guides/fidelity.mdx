@@ -1,0 +1,250 @@
+---
+title: Fidelity
+description: Score a face yourself, in ten blind turns against another model.
+---
+
+# Fidelity
+
+A fidelity run is ten blind turns on a face you own. Each turn you write a message and get
+two answers, `a` and `b`, in random order: one from your face, one from a competitor model.
+You pick the one that sounds more like the person, then accept it or correct it with what the
+person would actually have said. The run scores the face out of 10.
+
+Whatever you settle on for a turn, the answer you accepted or your correction, is that turn's
+reply in the conversation both sides answer next.
+
+---
+
+## Start a run
+
+```bash
+curl -X POST "https://api.faces.sh/v1/faces/alice/fidelity" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+| Field | |
+|-------|---|
+| `competitor` | Any chat model from [`GET /v1/models`](/guides/chat#supported-models). Default: the cheapest chat model a ChatGPT plan can run. |
+| `model` | The model your face answers on. Default: the face's [`default_model`](/guides/faces#default_model). |
+
+```json
+HTTP 201
+{
+  "object": "fidelity_run",
+  "run_id": "5c0e2...",
+  "alias": "alice",
+  "status": "active",
+  "competitor": "MODEL",
+  "competitor_texts": 14,
+  "turns_total": 10,
+  "next": { "turn": 1, "awaiting": "message" },
+  "estimated_usd": 0.42
+}
+```
+
+`competitor` is the model you are up against. `competitor_texts` is how many of the face's own
+source texts the competitor was given as examples. `estimated_usd` is the part of the run
+paid from credits: see [Cost](#cost).
+
+---
+
+## Play a turn
+
+```bash
+curl -X POST "https://api.faces.sh/v1/fidelity/RUN_ID/turns" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Should I take the offer?"}'
+```
+
+```json
+{
+  "object": "fidelity_turn",
+  "run_id": "5c0e2...",
+  "turn": 1,
+  "answers": { "a": "…", "b": "…" }
+}
+```
+
+Which label is your face changes from turn to turn, and is not shown until the run is
+finished. A new turn waits for a pick on the last one: until then it is a
+`409 fidelity_choice_pending`.
+
+### Pick, then accept or correct
+
+```bash
+curl -X POST "https://api.faces.sh/v1/fidelity/RUN_ID/turns/1/choice" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"pick": "b", "correction": "Not yet. Ask them for the offer in writing first."}'
+```
+
+`pick` is `a` or `b`. Leave `correction` out to accept the answer as it is.
+
+```json
+{
+  "object": "fidelity_choice",
+  "run_id": "5c0e2...",
+  "turn": 1,
+  "score": 0.9,
+  "score_so_far": 0.9,
+  "done": false
+}
+```
+
+After the tenth pick, `done` is `true` and the response carries `fidelity`, the run's score.
+
+### Speed
+
+A turn, or a choice with a correction, can take a while. **Set your client timeout to at least
+60 seconds.** Past about 40 seconds the response is held open: a `200` with the header
+`X-Faces-Held: 1`, and whitespace before the JSON. A failure after that point comes back inside
+the `200` as an error body, with `detail` and an `error` object carrying the real `status`.
+When `X-Faces-Held` is set, check for `error` first.
+
+---
+
+## Scoring
+
+| You picked | Then | Turn score |
+|------------|------|-----------:|
+| Your face | accepted it | 1.0 |
+| Your face | corrected it, a small change | 0.9 |
+| Your face | corrected it, a moderate change | 0.7 |
+| Your face | corrected it, a major change | 0.5 |
+| The competitor | accepted or corrected it | 0 |
+
+The fidelity score is the sum over the ten turns, out of 10.
+
+---
+
+## Review a run
+
+```bash
+curl "https://api.faces.sh/v1/fidelity/RUN_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "fidelity_run",
+  "run_id": "5c0e2...",
+  "alias": "alice",
+  "status": "done",
+  "competitor": "MODEL",
+  "competitor_texts": 14,
+  "turns_total": 10,
+  "turns_done": 10,
+  "next": null,
+  "score": 7.6,
+  "score_so_far": 7.6,
+  "thread_id": null,
+  "turns": [
+    { "n": 1, "message": "Should I take the offer?", "answers": { "a": "…", "b": "…" },
+      "pick": "b", "correction": "Not yet. Ask them for the offer in writing first.",
+      "score": 0.9, "face": "b", "grade": "small" }
+  ],
+  "created_at": "2026-10-22T09:14:03Z",
+  "finished_at": "2026-10-22T09:31:47Z"
+}
+```
+
+`status` is `active` until the tenth pick, then `done`. `next` says what the run is waiting
+for: `{"turn": n, "awaiting": "message"}` or `{"turn": n, "awaiting": "choice"}`, and `null`
+once it is done. `score` is `null` until then.
+
+Each turn shows your `message`, both `answers`, and once picked your `pick`, `correction` and
+`score`. `face`, the label that was your face, and `grade`, how much your correction changed
+it (`small`, `mid` or `major`, `null` when there was none), appear only once the run is
+finished.
+
+---
+
+## Save the run as a thread
+
+A finished run can be saved as a thread on the face:
+
+```bash
+curl -X POST "https://api.faces.sh/v1/fidelity/RUN_ID/save-thread" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{ "object": "fidelity_thread", "run_id": "5c0e2...", "thread_id": "8f1a0...", "created": true }
+```
+
+The thread holds your ten messages, each followed by the reply you settled on: your
+correction where you made one, otherwise the answer you accepted. The answer you did not pick
+is left out. [Compile it](/guides/compile) like any other thread with
+`POST /v1/compile/threads/{thread_id}/make`.
+
+Calling it again returns the same thread, with `created: false`. Before the run is finished it
+is a `409 fidelity_run_open`.
+
+---
+
+## The score on the face
+
+When a run finishes, its score is saved on the face. [`GET /v1/faces/{alias}`](/guides/faces#get-a-face)
+carries it for the owner:
+
+```json
+{ "fidelity": 7.6, "fidelity_at": "2026-10-22T09:31:47Z", "fidelity_competitor": "MODEL" }
+```
+
+A new run overwrites it. It is never shown on a published face or to anyone a face is shared
+with.
+
+---
+
+## Cost
+
+On Connect or Pro with ChatGPT linked, your face's and the competitor's answers on
+[Codex-eligible](/guides/oauth#where-it-applies) models run on your ChatGPT plan. Everything
+else is paid from your credits at the normal rates:
+
+- answers on any other model;
+- grading each correction you make to your face's answer;
+- your face's cause beyond your plan's [allowance](/guides/billing#allowances), and on Free,
+  every cause.
+
+`estimated_usd` covers the credit part only. Grading is always paid from credits, so a run on
+a linked account still needs a balance to start.
+
+If your ChatGPT link stops working during a run, a turn answers `422`, asking you to link it
+again or to allow paying from credits (the [`api_fallback`](/guides/oauth#when-chatgpt-is-unavailable)
+preference). Then send the turn again.
+
+---
+
+## Errors
+
+Errors carry an `error_code` and a `message` under `detail`:
+
+```json
+{ "detail": { "error_code": "fidelity_choice_pending", "message": "Pick an answer for turn 3 first." } }
+```
+
+Refused at the start, with nothing charged:
+
+| Status | `error_code` | When |
+|--------|--------------|------|
+| `402` | `fidelity_insufficient_credit` | Your balance cannot cover the part of the run paid from credits. |
+| `422` | `fidelity_nothing_compiled` | The face has nothing compiled. |
+| `422` | `fidelity_unknown_model` | `competitor` or `model` is not a chat model. |
+| `503` | `fidelity_no_competitor` | No default competitor is available. Name one with `competitor`. |
+
+During a run:
+
+| Status | `error_code` | When |
+|--------|--------------|------|
+| `404` | `fidelity_run_not_found` | No run with that id on your account. |
+| `404` | `fidelity_turn_not_found` | That turn has not been played. |
+| `409` | `fidelity_choice_pending` | The last turn has no pick yet. |
+| `409` | `fidelity_turn_chosen` | That turn already has a pick. |
+| `409` | `fidelity_run_finished` | All ten turns are played. |
+| `409` | `fidelity_run_open` | Saving a thread before the run is finished. |
+| `402`, `422`, `429`, `502` | `fidelity_answer_failed` | An answer could not be written: credit ran out, the ChatGPT link stopped working, too many requests, or the answer failed. Send the turn again. |
+| `402`, `422`, `429`, `502` | `fidelity_grade_failed` | A correction could not be graded, for the same reasons. Send the choice again. |

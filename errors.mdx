@@ -1,0 +1,150 @@
+---
+title: Errors
+description: One error shape, which status codes are worth retrying, and the reference code to quote when you report a failure.
+---
+
+# Errors
+
+Every failure answers with a JSON object holding a `detail` field:
+
+```json
+{ "detail": "Could not get thread. Reference 26a9d794c104." }
+```
+
+`detail` is a string on almost every route, and is written to be shown to a person as
+it stands. A few routes answer with an object instead, carrying a machine-readable code
+alongside the sentence: [OAuth](/guides/oauth), parts of [style](/guides/style), and
+the compile refusals below. Each documents its own codes. A client that prints `detail`
+should expect either, and the key carrying the code is not the same on all of them:
+`error` on some, `error_code` on the compile refusals, `code` on the provider-shaped
+ones.
+
+## The reference code
+
+A `detail` ending in **`Reference <12 hex characters>`** means we logged that exact
+request against that code, together with the real exception and its traceback.
+
+**Quote the reference when you report a failure.**
+
+It is a label, not a token. There is nothing to look up with it, it is not something
+to retry with, and the same request sent twice produces two different references.
+
+## Status codes
+
+| Code | Meaning | Worth retrying? |
+|------|---------|-----------------|
+| `400` | The body is not a JSON object, or the request is well formed but cannot be carried out on this object: a source that cannot be compiled, for example. Some of these carry a code; see below. | No: read the code. |
+| `401` | Credentials missing, malformed, expired or revoked, an API key sent to a route that takes only a JWT, such as API key management, or the account is [closed](#closed-accounts). | No. |
+| `402` | The account, or the key's budget cap, is out of credit. | No: [top up](/guides/billing). |
+| `403` | The credentials are valid, but this key may not use that face or model. | No. |
+| `404` | It does not exist, **or it exists and is not yours.** | No. |
+| `409` | It exists, and is locked or busy right now. | After a delay. |
+| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
+| `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
+| `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
+| `502` | A provider we call failed. | Cap your retries. |
+| `503` | Something we depend on was busy. | **Yes**: this is the code that asks you to send it again. |
+
+### `404` where you might expect `403`
+
+A face, team or API key that exists but that you cannot read answers `404`, not `403`. These routes give the same answer for "never existed" and
+"not yours", so a `404` is not evidence that something has been deleted.
+
+A document or thread route whose path holds something that is not an id at all is a
+`404` too, and says so:
+
+```json
+{ "detail": "'null' is not a document id. A document id looks like 3f2b6c1e-8a4d-4e7a-9b1c-2d3e4f5a6b7c." }
+```
+
+A `403`, where you get one, names a restriction on your credentials rather than a
+missing thing: a plan limit, an admin-only route, a key confined to particular faces
+and models, or a face you may not act on.
+
+A wrong *current* password on `PATCH /auth/me` or `/auth/change-password` is also a
+`403`.
+
+### Malformed bodies
+
+On `/v1/chat/completions`, `/v1/responses` and `/v1/messages`, an empty body, a body
+that is not JSON, or JSON that is not an object is a `400`:
+
+```json
+{ "detail": "Bad request: … Send a JSON object." }
+```
+
+### Rate limits
+
+Every route that runs a model or a compile counts against one per-account, per-minute
+limit set by plan: `/v1/chat/completions`, `/v1/responses`, `/v1/messages`,
+`/v1/decisions`, `/v1/systemone`, `/v1/causes`, and both compile `/make` routes. All of
+an account's keys share the count. Read the limits from
+[`GET /v1/rates`](/guides/billing#current-rates) `limits.requests_per_minute` rather
+than hard-coding them. Billing routes have their own, smaller limits.
+
+Over the limit is a `429` with a `Retry-After` header, in seconds:
+
+```json
+{ "detail": "Rate limit: 30 requests per minute on the free plan. Retry in 11s." }
+```
+
+### Closed accounts
+
+Once an account is closed (`DELETE /v1/account`), its JWTs answer `401` on every route,
+`/auth/refresh` included:
+
+```json
+{ "detail": "This account is closed." }
+```
+
+Its API keys are revoked, and answer `401` as any revoked key does.
+
+### `422`, not `500`, for a value a field cannot hold
+
+A value too long or too large for the field it lands in is a bad request, and is
+answered as one. Where the limit is declared on the request, the message names the
+field and the number:
+
+```json
+{ "detail": "body → name: String should have at most 255 characters" }
+```
+
+The path to the offending field is joined with ` → `, and a request with more than one
+problem reports all of them in the same string, separated by `; `.
+
+Where it is not declared, the answer is still a `422`, but it can only say which kind
+of value was at fault:
+
+```json
+{ "detail": "Could not create API key: a text value in it is longer than that field allows. Check the request against the limits in the API document. Reference 3b1bec3ebd1f." }
+```
+
+Anything that reads a status code to decide whether to retry should treat a `422` as
+final.
+
+### A `400` that names the rule
+
+`POST /v1/compile/documents/{id}/make` and its thread twin refuse a source that cannot
+be compiled, and the refusal carries a short stable code:
+
+```json
+{
+  "detail": {
+    "message": "this document is too short to compile: below 50 words a source yields nothing to keep. Add more of the author's own writing, then compile.",
+    "error_code": "too_short"
+  }
+}
+```
+
+The same code is published on the source itself as `compile_blocked_reason`. The
+codes, and what to do about each, are in
+[Can this be compiled at all?](/guides/compile#can-this-be-compiled-at-all).
+
+Treat a code you do not recognise as "cannot be compiled"; the set will grow.
+
+### `503` is the retry
+
+A `503` names what was busy and asks you to try again (the database on a data route,
+the payment service on a billing one).
+
+The other 5xx codes mean the opposite. A `500` is worth one attempt and then a report, not a loop.

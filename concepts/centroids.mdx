@@ -1,0 +1,171 @@
+---
+title: Centroids
+description: Face similarity, neighbors, and the geometric structure of compiled faces.
+---
+
+# Centroids
+
+Every compiled face has a **centroid**, a summary of what the face was compiled on. Centroids are what make similarity
+search possible: you can ask which of your faces are alike, which are distinct, and
+how alike along several dimensions rather than just overall.
+
+Two endpoints use it: one compares a set of faces you name, the other searches for
+the closest or furthest matches to a single face.
+
+---
+
+## Scores
+
+A comparison returns a score under `face`. Scores run from `-1` to `1`. Higher is more alike. Only the scores are returned. A score involving a face you don't own is given to one decimal place.
+
+---
+
+## Compare several faces
+
+```bash
+curl "https://api.faces.sh/v1/faces/diff?faces=alice,bob" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+Returns a symmetric matrix. Self-comparisons are omitted. Every face must be owned by
+you, and at least two are required (`400` otherwise). A face with nothing compiled
+returns `422` naming it, including a face that holds only the attributes it was created
+with, or whose sources have all been reset. `centroids_updated_at` gives each face's
+centroid time, as a Unix timestamp.
+
+```json
+{
+  "faces": ["alice", "bob"],
+  "similarity": {
+    "alice": { "bob": { "face": 0.69 } },
+    "bob":   { "alice": { "face": 0.69 } }
+  },
+  "centroids_updated_at": { "alice": 1792437350.0, "bob": 1792437152.0 }
+}
+```
+
+---
+
+## Find similar faces
+
+```bash
+curl "https://api.faces.sh/v1/faces/FACE_ALIAS/neighbors?k=5&direction=nearest" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `k` | 5 | How many faces to return, up to **100** (`422` above it) |
+| `direction` | `nearest` | `nearest` for most similar, `furthest` for most dissimilar |
+| `scope` | `own` | `own` searches your own faces. `published` searches the published corpus |
+| `owner` | | Owner of the **query** face, when it is not yours |
+| `include` | | `profile`, `avatar`, `usage`: extra fields per neighbour |
+
+Never returns the query face itself.
+
+```json
+{
+  "face": "alice",
+  "direction": "nearest",
+  "k": 2,
+  "scope": "own",
+  "neighbors": [
+    { "face": "bob",   "uid": "…", "similarity": 0.83, "centroid_updated_at": 1792437152.0, "...": "..." },
+    { "face": "carol", "uid": "…", "similarity": 0.71, "centroid_updated_at": 1792437204.0, "...": "..." }
+  ]
+}
+```
+
+`scope` echoes back whatever you sent.
+
+### Search the published corpus
+
+`scope=published` turns this into discovery: "faces like this one, from everyone".
+
+```bash
+curl "https://api.faces.sh/v1/faces/FACE_ALIAS/neighbors?scope=published&k=20&include=avatar,usage" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+**Only published faces are ever returned.** Private faces do not appear in this
+scope, including your own.
+
+The **query** face can be any face you can read, not only one you own. Name
+someone else's either way: the handle, or `?owner=`:
+
+```bash
+curl "https://api.faces.sh/v1/faces/head:socrates/neighbors?scope=published&k=10" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+# the same request
+curl "https://api.faces.sh/v1/faces/socrates/neighbors?owner=head&scope=published&k=10" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+<Warning>
+**Say which owner, if you own a face of the same name.** A bare alias means
+*your* face first, so `?owner=` or the handle is the difference between asking
+about `head:socrates` and asking about your own `socrates`. The giveaway that
+you asked the wrong question is the query face turning up in its own neighbour
+list. See [naming a face you do not own](/guides/faces#naming-a-face-you-do-not-own).
+</Warning>
+
+The response says which face it answered about:
+
+```json
+{ "face": "socrates", "owned_by": "head", "scope": "published", "k": 10, ... }
+```
+
+`face` is the resolved alias and `owned_by` the account it belongs to. The refusals name it too:
+a query face with nothing compiled returns `422` quoting `head:socrates`, not the
+string you sent, under the same rule as [comparing faces](#compare-several-faces).
+
+A face you cannot read returns `404`, whether or not it exists, never `403`.
+
+### Enough to draw a card
+
+Each neighbour carries `name`, `specialty`, `description`, `owned_by` and
+`basic_facts` **unconditionally**.
+
+`?include=` adds the rest, using the same vocabulary as the face list:
+
+| `include` | adds |
+|-----------|------|
+| `avatar` | `avatar_status`, `avatar_version`, `avatar_uploaded` |
+| `usage` | `usage` (`users_30d`, `tokens_30d`, `tokens_total`) |
+| `profile` | `compile_tokens_synced` |
+
+```json
+{
+  "face": "mira",
+  "similarity": 0.81,
+  "owned_by": "someone",
+  "name": "Mira",
+  "specialty": "asking the question under your question",
+  "description": "...",
+  "basic_facts": { "occupation": { "value": "editor" } },
+  "avatar_status": "current",
+  "avatar_version": 2,
+  "usage": { "users_30d": 31, "tokens_30d": 221904, "tokens_total": 4820117 }
+}
+```
+
+These are the same field names the face list uses.
+
+---
+
+## When centroids are updated
+
+A face's centroid is recalculated each time a compile completes. A face that has never compiled, or
+whose sources have all been deleted, has no centroid and is left out of
+searches. [Synthetic faces](/guides/synthetic-faces) have no pre-computed centroid and are not included either.
+
+---
+
+## Use cases
+
+- **Cluster your library**: see which faces are naturally alike or distinct.
+- **Quality check**: after compiling a new face, confirm it is actually distinct
+  from the ones you already have rather than a near-duplicate.
+- **Discovery**: `scope=published` answers "more like this" against every
+  published face.

@@ -1,0 +1,197 @@
+---
+title: Benchmark
+description: Put your face against a reference model on your own writing, and see which sounds more like you.
+---
+
+# Benchmark
+
+A benchmark run puts a face you own against a reference model, round after round, on the
+face's own writing, and reports which of the two sounds more like the person. It runs in the
+background: start it, poll it, read the result.
+
+---
+
+## Start a run
+
+```bash
+curl -X POST "https://api.faces.sh/v1/benchmark/runs" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "self_face": "alice",
+    "reference_model": "MODEL",
+    "rounds": 100,
+    "max_spend_usd": 15
+  }'
+```
+
+```json
+HTTP 202
+{ "run_id": "b1347...", "status": "queued" }
+```
+
+| Field | |
+|-------|---|
+| `self_face` | Required. The alias of a face you own. |
+| `model` | The model the face answers with. Optional; the run reports the one it used. |
+| `reference_model` | The model to compare the face against. Optional; the default is one of OpenAI's, and the run reports which. |
+| `rounds` | `1` to `300`. Default `100`. |
+| `seed` | Fixes which rounds are drawn. See [Repeat a run](#repeat-a-run). |
+| `max_spend_usd` | A hard ceiling on spend. A run that reaches it stops and reports what it scored. |
+| `dry_run` | `true` returns a price estimate and starts nothing. |
+
+`model` and `reference_model` take any chat model from
+[`GET /v1/models`](/guides/chat#supported-models); any other is a `400`.
+
+Refused before anything is spent:
+
+| Status | `code` | When |
+|--------|--------|------|
+| `402` | `benchmark_insufficient_credit` | Your balance cannot cover the run. See [Price](#price). |
+| `404` | | `self_face` is not a face you own. |
+| `422` | `benchmark_no_compiled_corpus` | Nothing has been compiled into the face. |
+| `422` | `benchmark_no_style` | The face has no [style](/guides/style) yet. |
+
+---
+
+## Price
+
+On Connect or Pro with ChatGPT linked, the calls a run makes on
+[Codex-eligible](/guides/oauth#where-it-applies) models run on your ChatGPT plan, except the
+reference model's answers, which are always paid from credits. Every other call is paid from
+credits. On Free, the whole run is paid from credits.
+
+Send `"dry_run": true` first. It answers `200`, starts nothing and charges nothing:
+
+```json
+{
+  "dry_run": true,
+  "self_face": "alice",
+  "rounds": 100,
+  "estimated_usd": 3.0,
+  "basis": "in_corpus",
+  "note": "An estimate, not a quote: a face with a large body of material can cost more. Set max_spend_usd to put a hard ceiling on the run."
+}
+```
+
+`estimated_usd` counts only the calls paid from credits. It is an estimate, not a quote: a
+face with a lot of material can cost more, so set `max_spend_usd`.
+
+A run is refused up front with `402 benchmark_insufficient_credit` when your balance is below
+what it needs: the smaller of the estimate and `max_spend_usd`. Nothing is charged.
+
+---
+
+## Watch it
+
+```bash
+curl "https://api.faces.sh/v1/benchmark/runs/RUN_ID" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "run_id": "b1347...",
+  "self_face": "alice",
+  "status": "running",
+  "model": "MODEL",
+  "reference_model": "MODEL",
+  "progress": { "rounds_done": 42, "rounds_total": 100 },
+  "result": null,
+  "error": null,
+  "created_at": "2026-10-22T09:14:03"
+}
+```
+
+| `status` | |
+|----------|---|
+| `queued` | Waiting to start. |
+| `running` | In progress. `progress` is `null` until the number of rounds is known. |
+| `done` | Finished. `result` holds the result. |
+| `failed` | Stopped. `error` says why. |
+
+`GET /v1/benchmark/runs` lists your runs, newest first. It takes `limit` (`1` to `100`,
+default `20`) and `self_face`.
+
+---
+
+## Read the result
+
+The result is `result` on a finished run, or:
+
+```bash
+curl "https://api.faces.sh/v1/benchmark/runs/RUN_ID/results" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "winner": "face",
+  "gap": 0.22,
+  "ci95": { "lo": 0.09, "hi": 0.34, "resolved": true },
+  "face": 0.71,
+  "reference": 0.49,
+  "by_length": {
+    "under 30 words": { "rounds": 31, "face": 0.68, "reference": 0.52, "gap": 0.16,
+                        "ci95": { "lo": -0.04, "hi": 0.35, "resolved": false }, "winner": null },
+    "300+ words": { "...": "..." }
+  },
+  "by_medium": { "email": { "...": "..." } },
+  "rounds_requested": 100,
+  "rounds_fought": 96,
+  "short_by": 4,
+  "warnings": [],
+  "basis": "in_corpus",
+  "usage": { "input_tokens": 812004, "output_tokens": 61230, "spend_usd": 1.94, "budget_usd": 15.0 },
+  "seed": 11
+}
+```
+
+Until the run is done, this route is a `409`: `benchmark_run_unfinished` while it is queued or
+running, `benchmark_run_failed` once it has failed.
+
+| Field | |
+|-------|---|
+| `winner` | `face`, `reference`, or `null` when the run did not resolve a difference. |
+| `gap` | The face's score minus the reference's. Positive favours the face. |
+| `ci95` | `lo` and `hi`, the 95% interval around `gap`, and `resolved`. |
+| `face`, `reference` | Each side's overall score. |
+| `by_length`, `by_medium` | The same figures per slice, each with its own `rounds`. |
+| `rounds_requested` | The `rounds` you asked for. |
+| `rounds_fought` | The rounds actually scored. |
+| `short_by` | Rounds the face's material could not supply. |
+| `warnings` | Sentences to read before the numbers. |
+| `basis` | What the run measured. Today always `in_corpus`. |
+| `usage` | `input_tokens`, `output_tokens`, `spend_usd`, and `budget_usd` (your `max_spend_usd`). |
+| `seed` | The seed the run drew its rounds with. |
+| `stopped_early` | Present and `true` when `max_spend_usd` ended the run. |
+
+### `resolved`
+
+`gap` alone is not a finding. `resolved` is `true` only when the interval excludes zero; when
+it is `false`, `winner` is `null`, whatever `gap` says. More rounds resolve a smaller gap. A
+slice with fewer than 20 scored rounds never resolves.
+
+### Slices
+
+`by_length` buckets rounds by the length of your own text: `under 30 words`, `30-99 words`,
+`100-299 words`, `300+ words`. `by_medium` buckets them by kind of writing. One side can win
+the short rounds and lose the long ones.
+
+### `basis`
+
+`in_corpus` measures how faithfully each side keeps you on writing the face was built from,
+not how either would do on writing it has never seen.
+
+---
+
+## Repeat a run
+
+Every result reports its `seed`. Send it back to draw the same rounds again:
+
+```json
+{ "self_face": "alice", "reference_model": "MODEL", "seed": 11 }
+```
+
+Two runs on the same face, `rounds` and `seed` are comparable. Two runs without one are two different
+samples.

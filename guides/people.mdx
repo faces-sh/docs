@@ -1,0 +1,327 @@
+---
+title: People
+description: Account pictures, following, and the reads that draw a wall without asking per row.
+---
+
+# People
+
+A **face** is a causal model you compile. An **account** is a person who owns faces. Most
+of the API is about faces; this page is about the accounts behind them: the picture
+one carries, who follows whom, and how to render a wall of either without a request
+per row.
+
+Accounts are addressed by `username`, which is the same handle that appears as
+`owned_by` on every face and as the left half of a chat handle (`owned_by:alias`).
+
+---
+
+## Your `me` face
+
+Every account has a face aliased **`me`**, created with the account. It is you: its
+avatar is your picture across the platform.
+
+At creation it is named after the account, has no `description`, `specialty` or
+`basic_facts`, and is private (`published: false`). Nothing is compiled into it, and
+nothing compiles into it unless you name it: uploads, compiles and style builds go to
+the face a request names.
+
+### Addressing it
+
+| | Path | Chat `model` |
+| --- | --- | --- |
+| Yours | `/v1/faces/me` | `me@<model>` |
+| Anyone's | `/v1/faces/<username>:me` | `<username>:me@<model>` |
+
+Someone else's `me` is readable only if they publish it or share it with you; the
+[avatar](#your-picture) is the exception. `/auth/me` and the face list carry no flag
+for it: identify it by `alias == "me"`.
+
+```bash
+curl https://api.faces.sh/v1/faces/me \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+### What you can do to it
+
+It is an ordinary face, with two exceptions:
+
+| Request | Result |
+| --- | --- |
+| `POST /v1/faces` with alias `me`, in any case | `400`: the alias is reserved. |
+| `DELETE /v1/faces/me` | `409`. Clear what it knows with `DELETE /v1/faces/me/corpus`; closing the account removes it. |
+
+Neither carries an `error_code`: branch on the status. Everything else works as on any
+face. Edit it with `PATCH /v1/faces/me` (`name`, `specialty`, `description`,
+`basic_facts` and the rest); its alias, like every face's, cannot be changed. Compile
+into it, build its [style](/guides/style) with `"self_face": "me"`, publish it, share
+it, lock it, add it to teams. With nothing compiled, chatting to it is a `409`, as for
+any face.
+
+<Note>
+`/v1/me/...` in a route path means "the caller": `GET /v1/me/tags`, for
+example. That is a different thing from the face called `me`, which is addressed
+like any other face at `/v1/faces/me`.
+</Note>
+
+### Your picture
+
+It is a face avatar, so it is [the face avatar API](/guides/faces#avatars);
+there is no separate account-picture endpoint:
+
+```bash
+# Yours
+curl "https://api.faces.sh/v1/faces/me/avatar?size=md&prefer=uploaded" \
+  -H "Authorization: Bearer YOUR_API_KEY" --output me.png
+
+# Somebody else's, by the handle on any face they own
+curl "https://api.faces.sh/v1/faces/alice:me/avatar?size=sm&prefer=uploaded" \
+  -H "Authorization: Bearer YOUR_API_KEY" --output alice.png
+```
+
+Send `prefer=uploaded` when you are drawing a person. Without it the route serves the
+generated portrait, or the placeholder if there is none, even when the account has
+uploaded a picture.
+
+<Note>
+**Anyone's account picture is fetchable; the rest of their `me` face is not.**
+A `me` face is private unless its owner chooses to publish it. The avatar route is the
+single exception. Unless it is published, `GET /v1/faces/alice:me`,
+its avatar versions, its profile and chatting with it all stay shut.
+</Note>
+
+Generate one from your compiled profile, or
+[upload your own](/guides/faces#uploading-your-own-picture). The upload sits
+alongside the generated one rather than replacing it, and `?prefer=uploaded`
+chooses between them per request, exactly as for any face.
+
+<Note>
+**A 4:5 portrait, not a square.** Every avatar on the platform is the same
+shape, so a round creator chip is a client-side crop of one. Ask for `size=sm`
+(32 dots) for a chip.
+</Note>
+
+## Nobody has a broken picture
+
+`GET /v1/faces/{alias}/avatar` **always returns an image** for a face that
+exists. A face with no generated and no uploaded avatar gets the Faces logo,
+rendered through the same dot matrix as any other avatar (same grid, same three
+sizes, same `ETag`), so you need no branch for the empty case and no local
+placeholder.
+
+The response says which you got, and whose it is:
+
+```
+X-Avatar-Source: organic | uploaded | default
+X-Avatar-Owner:  alice
+```
+
+`X-Avatar-Owner` is the account the picture belongs to. Worth checking when you
+asked by a bare alias: an alias is unique per owner, so if you own a face of the
+same name you will have been served your own. See
+[naming a face you do not own](/guides/faces#naming-a-face-you-do-not-own).
+
+`default` is the placeholder. A brand-new `me` face is in that state and cannot
+leave it alone, because a portrait is drawn from the compiled profile and a new
+face has none.
+
+<Warning>
+**`avatar_status` stays `"none"` while the placeholder is being served.**
+
+Use `X-Avatar-Source` to tell a real picture from the placeholder, and
+`avatar_status` to decide whether to offer a refresh.
+</Warning>
+
+**`?v=N` is still a `404`** when that version does not exist.
+
+
+## Following
+
+Accounts can follow accounts. Following is how the [following feed](#the-following-feed)
+decides whose faces to show you.
+
+### Follow and unfollow
+
+```bash
+curl -X POST   https://api.faces.sh/v1/users/alice/follow -H "Authorization: Bearer YOUR_API_KEY"
+curl -X DELETE https://api.faces.sh/v1/users/alice/follow -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "follow",
+  "username": "alice",
+  "is_following": true,
+  "counts": {"following": 12, "followers": 34}
+}
+```
+
+**Both are idempotent.** Following someone twice is a `200`, not a `409`, and
+unfollowing someone you do not follow is a `200`.
+
+The response carries the state and the subject's counts.
+
+Following yourself is a `422`. An unknown username, or the alias of a face rather
+than an account, is a `404`: faces cannot be followed.
+
+### Who follows whom
+
+```bash
+curl "https://api.faces.sh/v1/users/alice/following?limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+
+curl "https://api.faces.sh/v1/users/alice/followers?limit=50" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "user",
+      "username": "bob",
+      "name": "Bob",
+      "description": null,
+      "created": 1791381488,
+      "is_following": true
+    }
+  ],
+  "counts": {"following": 12, "followers": 34},
+  "next_cursor": null,
+  "has_more": false
+}
+```
+
+**`is_following` is on every row, and it is about you** (the caller), not about the
+account whose list you are reading.
+
+It is `null` on your own row.
+
+`counts` belongs to the **subject** of the list, not to you.
+
+Page with `next_cursor` exactly as elsewhere: pass it back verbatim, keep going while
+it is present. A cursor from one listing handed to another is a `422`.
+
+<Warning>
+**`counts.followers` can be `null`, and `null` is not zero.** It means the figure
+could not be determined; `0` means nobody. Render them differently: `null` as
+nothing at all rather than as "0 followers".
+
+`counts.following` is always a number.
+</Warning>
+
+### Read one account
+
+```bash
+curl https://api.faces.sh/v1/users/alice \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "object": "user",
+  "username": "alice",
+  "name": "Alice",
+  "description": null,
+  "created": 1791381488,
+  "is_following": true,
+  "counts": {"following": 12, "followers": 34}
+}
+```
+
+This is also the one thing a filtered face list cannot tell
+you: a creator with nothing published and a username that does not exist both come
+back as an empty list, and this is a `404` for the second.
+
+`is_following` is `null` when the account is you.
+
+---
+
+## Drawing a wall
+
+A wall of face badges names a creator on every row. Three per-row questions follow
+from that, and each one has a per-row answer so you never need a request per badge.
+
+```bash
+curl "https://api.faces.sh/v1/faces?include_published=true&include=avatar,owner_avatar,owner_follow" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{
+  "alias": "socrates",
+  "owned_by": "head",
+  "avatar_status": "current",
+  "avatar_uploaded": false,
+  "owner_avatar": true,
+  "owner_followed": false
+}
+```
+
+| Ask with | Field | What it saves |
+| --- | --- | --- |
+| `include=avatar` | `avatar_status`, `avatar_uploaded` | a refresh affordance per card, without a request per face |
+| `include=owner_avatar` | `owner_avatar` | fetching the creator's picture only when it is a real one |
+| `include=owner_follow` | `owner_followed` | a Follow button per badge; it *is* the answer, no fetch |
+
+`owner_avatar` is true when the owner's **`me` face has a real picture**:
+generated or uploaded, not the placeholder. **When it is false, draw the
+placeholder locally and make no request.**
+
+Fetch a creator's picture at `/v1/faces/{owned_by}:me/avatar?prefer=uploaded`,
+the handle form, not a bare `me`, which would get you your own picture on every
+badge. `owner_avatar` is true for an uploaded picture as well as a generated one, so
+keep `prefer=uploaded` or an account with only an upload will draw as the placeholder.
+
+Each is **one query per page**, not one per row.
+
+`owner_followed` is `null` on your own faces.
+`owner_avatar` is **not** null on your own faces.
+
+Values you do not ask for come back `null`, which means "not asked" rather than
+"no".
+
+### The following feed
+
+The latest faces by everyone you follow:
+
+```bash
+curl "https://api.faces.sh/v1/faces?following=true&include=avatar,owner_avatar" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+It is the face list with one more filter, so it inherits `include=`, `q`, `sort`,
+`since` and the cursor unchanged.
+
+<Note>
+`?following=true` **implies `include_published=true`.**
+</Note>
+
+**Following nobody returns an empty page, never the whole corpus.**
+
+### A creator's wall
+
+One person's faces, by name:
+
+```bash
+curl "https://api.faces.sh/v1/faces?owner=head&include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`?owner=` is repeatable and unions across values, like `?team_id=`:
+
+```bash
+curl "https://api.faces.sh/v1/faces?owner=head&owner=alice&include_published=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+It is case-insensitive and composes as AND with every other filter. Pair it with `?following=true`
+and you get the intersection; naming someone you do not follow returns an empty page.
+
+`?owner=` **narrows what you can already see and never widens it.** Asking for
+another account's faces returns their published ones and nothing more, exactly as
+`include_published` does. An unknown username is an **empty list, not a `404`**;
+[read the account](#read-one-account) if you need to tell a quiet creator from a typo.
+
+See [List faces](/guides/faces#list-faces) for the full set of filters and how they
+compose.

@@ -1,0 +1,32 @@
+name: Links
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npx -y mint@4.2.1085 broken-links
+      - name: Front matter parses
+        run: |
+          pip install -q pyyaml
+          python - <<'PY'
+          import glob, sys, yaml
+          bad = []
+          for f in glob.glob("**/*.mdx", recursive=True):
+              s = open(f).read()
+              if s.startswith("---"):
+                  try:
+                      yaml.safe_load(s.split("---")[1])
+                  except Exception as e:
+                      bad.append(f"{f}: {e}".splitlines()[0])
+          print("\n".join(bad) or "front matter: clean")
+          sys.exit(1 if bad else 0)
+          PY
