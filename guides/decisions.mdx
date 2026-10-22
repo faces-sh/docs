@@ -359,7 +359,8 @@ alone about a second. **Set your client timeout to at least 300 seconds.**
 `X-Faces-Held: 1`, and whitespace before the JSON. Parse the body as usual. A failure after
 that point comes back inside the `200` as an error body, with `detail` and OpenAI's `error`
 object carrying the real `status`, and no `answers`. When `X-Faces-Held` is set, check for
-`error` before reading `answers`. A request still working after 300 seconds is stopped and
+`error` before reading `answers`. `detail` and `error.code` are the same as the refusal
+would carry without the hold. A request still working after 300 seconds is stopped and
 answered `504`: retry.
 
 ---
