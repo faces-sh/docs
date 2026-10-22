@@ -692,15 +692,18 @@ The asymmetry on removals mirrors `DELETE /v1/teams/{id}/members/{iam}`: a membe
 
 ## Upload source texts
 
-Upload documents, transcripts, or threads to be compiled into the face.
+Upload the face's own writing as a **document**, and any exchange between speakers
+(an interview, transcript or dialogue) as a **thread** with `face_speaker`, so only the
+face's turns are used. A labelled dialogue uploaded as a document is read as entirely the
+face's own words, other speakers included.
 
 ```bash
-# Text, PDF, or Word document
-curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=essay" \
+# The face's own writing: text, PDF, or Word document
+curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=essay&perspective=first-person" \
   -H "Authorization: Bearer YOUR_API_KEY" \
-  -F "file=@interview.docx"
+  -F "file=@essay.docx"
 
-# Pre-written transcript (plain text), "Speaker: message" per line
+# Interview or other transcript (plain text), "Speaker: message" per line
 curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=thread&face_speaker=Alice" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -F "file=@transcript.txt"
@@ -758,7 +761,7 @@ Import a YouTube video: the audio is fetched, transcribed, and stored as a docum
 curl -X POST https://api.faces.sh/v1/faces/alice/import \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID", "medium": "conversation"}'
+  -d '{"url": "https://www.youtube.com/watch?v=VIDEO_ID", "medium": "lecture", "perspective": "first-person"}'
 # Returns 202 with status "transcribing"
 # Poll GET /v1/compile/documents/{id} or /v1/compile/threads/{id} until ready
 ```
@@ -766,6 +769,9 @@ curl -X POST https://api.faces.sh/v1/faces/alice/import \
 The body also takes `type` (`document`, the default, or `thread`), `perspective`
 (`third-person` by default, or `first-person`) and `face_speaker`. As with uploads,
 `medium` is required when `type` is `document` and refused when it is `thread`.
+A recording of the face alone, such as a talk, is a document. An interview or any
+recording with more than one speaker is a thread: send `"type": "thread"` and
+`face_speaker`.
 
 ---
 

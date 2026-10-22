@@ -133,7 +133,7 @@ curl -X POST https://api.faces.sh/v1/faces \
 
 ## 4. Upload a source document
 
-Upload a plain-text file written by or about the face. Say what kind of writing it is with `medium`: it is required, and a document without one is refused with `422`:
+Upload a plain-text file the face wrote, such as an essay or a journal. Say what kind of writing it is with `medium`: it is required, and a document without one is refused with `422`:
 
 ```bash
 curl -X POST "https://api.faces.sh/v1/faces/alice/upload?medium=essay&perspective=first-person" \
@@ -160,6 +160,12 @@ curl -X POST "https://api.faces.sh/v1/faces/alice/upload?medium=essay&perspectiv
 ```
 
 You can also upload PDF and Word (`.docx`) files, audio, or video; see [Faces guide](/guides/faces).
+
+<Note>
+  **A document is the face's own writing.** An interview, transcript or any other exchange
+  between speakers is a thread: upload it with `type=thread&face_speaker=Alice` so only
+  Alice's turns are used. See [Uploading threads](/guides/compile#uploading-threads).
+</Note>
 
 ---
 

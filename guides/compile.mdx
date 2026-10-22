@@ -5,7 +5,14 @@ description: Turn source texts into a compiled face.
 
 # Compile
 
-Compilation turns uploaded source texts (documents, transcripts, conversation threads) into a face.
+Compilation turns uploaded source texts (documents and threads) into a face.
+
+<Note>
+  **A document is the face's own writing. An exchange between speakers is a thread.**
+  Upload interviews, transcripts and dialogues as a [thread](#uploading-threads) with
+  `face_speaker` set, so only the face's turns are used. A labelled dialogue uploaded as a
+  document is read as entirely the face's own words, other speakers included.
+</Note>
 
 ---
 
@@ -13,11 +20,13 @@ Compilation turns uploaded source texts (documents, transcripts, conversation th
 
 ### Documents
 
-A **document** is any source text that describes or characterizes the face from the outside: an interview, biography, essay, article, journal entry, or PDF.
+A **document** is the face's own writing: an essay, letter, paper, book, journal entry or poem. A document has a single author by design, and every word in it is read as the face's.
+
+Writing *about* the face by someone else, such as a biography, can also be uploaded as a document, with `perspective=third-person`.
 
 ### Threads
 
-A **thread** is a conversation transcript: a direct record of how the face expresses itself. A thread has no medium until you [set one](#correcting-what-a-thread-is), for example `conversation`; until then it does not count toward a [style](/guides/style).
+A **thread** is an exchange between speakers: an interview, a transcript, a dialogue or a conversation. Upload it with `face_speaker` naming the face, and only the face's turns are used. A thread has no medium until you [set one](#correcting-what-a-thread-is), for example `conversation`; until then it does not count toward a [style](/guides/style).
 
 ---
 
@@ -93,7 +102,7 @@ saved without one**:
   "alias": "alice",
   "label": "conference-talk",
   "content": "...",
-  "medium": "conversation"
+  "medium": "lecture"
 }
 ```
 
@@ -495,7 +504,7 @@ A locked thread behaves the same way. Read the `read_only` field before offering
 
 ## Uploading threads
 
-A **thread** is a multi-speaker conversation transcript. Upload a text file with `Speaker Name: message` format:
+A **thread** is an exchange between speakers. Interviews, transcripts and dialogues are uploaded as threads, never as documents. Upload a text file with `Speaker Name: message` format:
 
 ```
 Interviewer: Tell me about yourself.
@@ -512,7 +521,7 @@ curl -X POST "https://api.faces.sh/v1/faces/FACE_ALIAS/upload?type=thread&face_s
   -F "file=@interview.txt"
 ```
 
-The `face_speaker` parameter maps that speaker to `role=user` (the face's voice). All other speakers become `role=assistant`. If omitted, the first speaker is assumed to be the face.
+The `face_speaker` parameter maps that speaker to `role=user` (the face's voice). All other speakers become `role=assistant`, and only the face's turns are used. If omitted, the first speaker is assumed to be the face, so always set it.
 
 Once uploaded, compile the thread with `/make` (fire-and-forget, the same as a document):
 
