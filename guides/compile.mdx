@@ -11,7 +11,8 @@ Compilation turns uploaded source texts (documents and threads) into a face.
   **A document is the face's own writing. An exchange between speakers is a thread.**
   Upload interviews, transcripts and dialogues as a [thread](#uploading-threads) with
   `face_speaker` set, so only the face's turns are used. A labelled dialogue uploaded as a
-  document is read as entirely the face's own words, other speakers included.
+  document is read as entirely the face's own words, other speakers included. Saving one
+  returns a [`looks_like_transcript` warning](#warnings).
 </Note>
 
 ---
@@ -286,6 +287,31 @@ Every document response carries `word_count` and `compile_min_words` (currently 
 `null` when no minimum applies), and a `too_short` refusal carries both next to
 `error_code`, so a client can show "38 / 50 words". More codes
 may be added, so **treat a code you do not recognise as "cannot be compiled"**.
+
+### Warnings
+
+Saving a document's text returns `warnings`, a list of `{code, message}` entries, empty
+when there is nothing to report. It comes back from `POST /v1/compile/documents`,
+`PATCH /v1/compile/documents/{id}` when `content` changes, and
+`POST /v1/faces/{alias}/upload` with `type=document`. A warning never blocks the save.
+
+| code | meaning |
+|------|---------|
+| `looks_like_transcript` | The text reads as a conversation between several speakers. Conversations belong in a [thread](#uploading-threads), with `face_speaker` set. |
+
+```json
+"warnings": [
+  {
+    "code": "looks_like_transcript",
+    "message": "This looks like a conversation between several speakers. To have only Ada's turns used, upload it as a thread (with face_speaker) instead of a document."
+  }
+]
+```
+
+**Show the `message`**, and offer to upload the file again as a thread, then delete the
+document. A URL [import](/guides/faces#import) fetches its text after the
+response, so it carries no warning: import an interview page with `type=thread`. New codes
+may be added; show the `message` of any you do not recognise.
 
 <Note>
   **There is no minimum number of messages or replies.** A thread with one user

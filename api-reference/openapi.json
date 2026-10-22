@@ -9608,6 +9608,15 @@
             "title": "Rush",
             "description": "True when this compile was queued as a rush: it starts now, at the rush rate.",
             "readOnly": true
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
           }
         },
         "type": "object",
@@ -14853,6 +14862,15 @@
             "title": "Rush",
             "description": "True when this compile was queued as a rush: it starts now, at the rush rate.",
             "readOnly": true
+          },
+          "warnings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
           }
         },
         "type": "object",
