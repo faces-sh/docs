@@ -278,13 +278,13 @@ nothing is charged:
 
 | endpoint | late refusal |
 |----------|--------------|
-| `/v1/chat/completions` | `data: {"error": {"message": "...", "code": 503}}`, then `data: [DONE]` |
-| `/v1/responses` | `event: error` with `{"type": "error", "code": "503", "message": "..."}` |
-| `/v1/messages` | `event: error` with `{"type": "error", "error": {"type": "overloaded_error", "message": "..."}}` |
+| `/v1/chat/completions` | `data: {"error": {"message": "...", "code": 503, "status": 503}}`, then `data: [DONE]` |
+| `/v1/responses` | `event: error` with `{"type": "error", "code": "503", "status": 503, "message": "..."}` |
+| `/v1/messages` | `event: error` with `{"type": "error", "error": {"type": "overloaded_error", "message": "...", "status": 503}}` |
 
-When the refusal has a code of its own, such as `oauth_rejected`, `code` carries it in place
-of the status (`error.code` on `/v1/messages`), and the event also carries the same `detail`
-as a refusal before the stream started.
+`status` is always the real HTTP status. When the refusal has a code of its own, such as
+`oauth_rejected`, `code` carries it (`error.code` on `/v1/messages`); otherwise `code` repeats
+the status. The event also carries the same `detail` as a refusal before the stream started.
 
 **A model that refuses a streamed request answers with an error, not an empty stream.**
 An invalid `temperature`, for example, gets the same non-2xx JSON error the request gets
