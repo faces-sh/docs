@@ -577,7 +577,7 @@ curl -X POST "https://api.faces.sh/v1/faces/FACE_ALIAS/upload?type=thread&face_s
 # Poll until transcription completes
 curl https://api.faces.sh/v1/compile/threads/THREAD_ID \
   -H "Authorization: Bearer YOUR_API_KEY"
-# status: "transcribing" → "not_compiled" (ready) or "failed"
+# status: "transcribing" → "not_compiled" (ready) or "failed" (upload it again)
 
 # Review the transcript, then compile
 curl -X POST https://api.faces.sh/v1/compile/threads/THREAD_ID/make \

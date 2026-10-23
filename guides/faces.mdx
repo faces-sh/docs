@@ -733,7 +733,7 @@ A document upload returns [`warnings`](/guides/compile#warnings). If it holds
 Word (`.docx`) and PDF files have their text extracted for you; upload the file as
 it is, no conversion needed.
 
-Audio and video files are transcribed asynchronously: the upload returns **202** with `status: "transcribing"`. Poll the thread or document GET endpoint until `status` becomes `not_compiled` (ready to review) or `failed`. Text, PDF, and Word uploads return 200 synchronously.
+Audio and video files are transcribed asynchronously: the upload returns **202** with `status: "transcribing"`. Poll the thread or document GET endpoint until `status` becomes `not_compiled` (ready to review) or `failed`. A failed transcription is final: upload the file again. Text, PDF, and Word uploads return 200 synchronously.
 
 To get the raw transcript without creating a compile thread/document, use the `/transcribe` endpoint instead.
 
@@ -768,6 +768,9 @@ curl -X POST https://api.faces.sh/v1/faces/alice/import \
 # Returns 202 with status "transcribing"
 # Poll GET /v1/compile/documents/{id} or /v1/compile/threads/{id} until ready
 ```
+
+The import ends as `not_compiled` (ready) or `failed`. A failed import is final: import the
+URL again.
 
 The body also takes `type` (`document`, the default, or `thread`), `perspective`
 (`third-person` by default, or `first-person`) and `face_speaker`. As with uploads,
