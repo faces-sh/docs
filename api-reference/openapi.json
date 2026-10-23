@@ -995,7 +995,7 @@
             "description": "Filter to faces that have ALL of these tags (repeat for AND). Tag values are lowercased before match."
           },
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "query",
             "required": false,
             "schema": {
@@ -1010,10 +1010,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter to faces that are members of ANY of these teams (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (team1 OR team2).",
-              "title": "Team Id"
+              "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (group1 OR group2).",
+              "title": "Group Id"
             },
-            "description": "Filter to faces that are members of ANY of these teams (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (team1 OR team2)."
+            "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (group1 OR group2)."
           },
           {
             "name": "include",
@@ -1031,10 +1031,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional enrichment fields to include on each face item. Repeatable or comma-separated. Recognized values: 'tags', 'teams', 'profile', 'sharing', 'avatar'. 'avatar' populates `avatar_status` and `avatar_uploaded` (`avatar_status` is one of 'none', 'current' or 'stale'), so a client can show a refresh affordance without a request per face. It is opt-in because deciding it reads the compiled-profile rows, which a bare listing does not fetch. 'sharing' populates `shared_with`, which is otherwise present but always empty on this route: it is the only way to see who a face is shared with in a listing. 'owner_follow' populates `owner_followed` (whether YOU follow each row's owner), so a wall of badges can style a Follow button per creator without fetching your whole following list first. Null on your own faces. 'owner_avatar' populates `owner_avatar`: whether the row's owner's `me` face has a REAL picture rather than the placeholder, so a badge fetches /v1/faces/{owned_by}:me/avatar only for the creators who have one and draws the placeholder locally for the rest. Unknown values are silently ignored. The face description is always included; tags, teams, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise.",
+              "description": "Optional enrichment fields to include on each face item. Repeatable or comma-separated. Recognized values: 'tags', 'groups', 'profile', 'sharing', 'avatar'. 'avatar' populates `avatar_status` and `avatar_uploaded` (`avatar_status` is one of 'none', 'current' or 'stale'), so a client can show a refresh affordance without a request per face. It is opt-in because deciding it reads the compiled-profile rows, which a bare listing does not fetch. 'sharing' populates `shared_with`, which is otherwise present but always empty on this route: it is the only way to see who a face is shared with in a listing. 'owner_follow' populates `owner_followed` (whether YOU follow each row's owner), so a wall of badges can style a Follow button per creator without fetching your whole following list first. Null on your own faces. 'owner_avatar' populates `owner_avatar`: whether the row's owner's `me` face has a REAL picture rather than the placeholder, so a badge fetches /v1/faces/{owned_by}:me/avatar only for the creators who have one and draws the placeholder locally for the rest. Unknown values are silently ignored. The face description is always included; tags, groups, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise.",
               "title": "Include"
             },
-            "description": "Optional enrichment fields to include on each face item. Repeatable or comma-separated. Recognized values: 'tags', 'teams', 'profile', 'sharing', 'avatar'. 'avatar' populates `avatar_status` and `avatar_uploaded` (`avatar_status` is one of 'none', 'current' or 'stale'), so a client can show a refresh affordance without a request per face. It is opt-in because deciding it reads the compiled-profile rows, which a bare listing does not fetch. 'sharing' populates `shared_with`, which is otherwise present but always empty on this route: it is the only way to see who a face is shared with in a listing. 'owner_follow' populates `owner_followed` (whether YOU follow each row's owner), so a wall of badges can style a Follow button per creator without fetching your whole following list first. Null on your own faces. 'owner_avatar' populates `owner_avatar`: whether the row's owner's `me` face has a REAL picture rather than the placeholder, so a badge fetches /v1/faces/{owned_by}:me/avatar only for the creators who have one and draws the placeholder locally for the rest. Unknown values are silently ignored. The face description is always included; tags, teams, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise."
+            "description": "Optional enrichment fields to include on each face item. Repeatable or comma-separated. Recognized values: 'tags', 'groups', 'profile', 'sharing', 'avatar'. 'avatar' populates `avatar_status` and `avatar_uploaded` (`avatar_status` is one of 'none', 'current' or 'stale'), so a client can show a refresh affordance without a request per face. It is opt-in because deciding it reads the compiled-profile rows, which a bare listing does not fetch. 'sharing' populates `shared_with`, which is otherwise present but always empty on this route: it is the only way to see who a face is shared with in a listing. 'owner_follow' populates `owner_followed` (whether YOU follow each row's owner), so a wall of badges can style a Follow button per creator without fetching your whole following list first. Null on your own faces. 'owner_avatar' populates `owner_avatar`: whether the row's owner's `me` face has a REAL picture rather than the placeholder, so a badge fetches /v1/faces/{owned_by}:me/avatar only for the creators who have one and draws the placeholder locally for the rest. Unknown values are silently ignored. The face description is always included; tags, groups, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise."
           },
           {
             "name": "limit",
@@ -1220,10 +1220,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter to faces owned by these accounts (repeatable for OR / union, the same shape as ?team_id=). Case-insensitive. ANDs with every other filter: ?owner=head&q=engine&sort=usage means what it reads as. An unknown username is an empty page, not a 404: a creator with nothing published and a creator who does not exist look the same from here (GET /v1/users/{username} tells them apart). NARROWS what you can already see and never widens it, so pair it with include_published=true to read someone else's wall.",
+              "description": "Filter to faces owned by these accounts (repeatable for OR / union, the same shape as ?group_id=). Case-insensitive. ANDs with every other filter: ?owner=head&q=engine&sort=usage means what it reads as. An unknown username is an empty page, not a 404: a creator with nothing published and a creator who does not exist look the same from here (GET /v1/users/{username} tells them apart). NARROWS what you can already see and never widens it, so pair it with include_published=true to read someone else's wall.",
               "title": "Owner"
             },
-            "description": "Filter to faces owned by these accounts (repeatable for OR / union, the same shape as ?team_id=). Case-insensitive. ANDs with every other filter: ?owner=head&q=engine&sort=usage means what it reads as. An unknown username is an empty page, not a 404: a creator with nothing published and a creator who does not exist look the same from here (GET /v1/users/{username} tells them apart). NARROWS what you can already see and never widens it, so pair it with include_published=true to read someone else's wall."
+            "description": "Filter to faces owned by these accounts (repeatable for OR / union, the same shape as ?group_id=). Case-insensitive. ANDs with every other filter: ?owner=head&q=engine&sort=usage means what it reads as. An unknown username is an empty page, not a 404: a creator with nothing published and a creator who does not exist look the same from here (GET /v1/users/{username} tells them apart). NARROWS what you can already see and never widens it, so pair it with include_published=true to read someone else's wall."
           },
           {
             "name": "following",
@@ -1483,10 +1483,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Optional enrichment fields. Repeatable or comma-separated. Recognized values: 'tags', 'teams', 'profile'. NOT 'sharing': `shared_with` is always populated on this route and needs no flag; only the /faces listing requires one. Unknown values are silently ignored. The face description and its tags are always included; teams, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise.",
+              "description": "Optional enrichment fields. Repeatable or comma-separated. Recognized values: 'tags', 'groups', 'profile'. NOT 'sharing': `shared_with` is always populated on this route and needs no flag; only the /faces listing requires one. Unknown values are silently ignored. The face description and its tags are always included; groups, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise.",
               "title": "Include"
             },
-            "description": "Optional enrichment fields. Repeatable or comma-separated. Recognized values: 'tags', 'teams', 'profile'. NOT 'sharing': `shared_with` is always populated on this route and needs no flag; only the /faces listing requires one. Unknown values are silently ignored. The face description and its tags are always included; teams, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise."
+            "description": "Optional enrichment fields. Repeatable or comma-separated. Recognized values: 'tags', 'groups', 'profile'. NOT 'sharing': `shared_with` is always populated on this route and needs no flag; only the /faces listing requires one. Unknown values are silently ignored. The face description and its tags are always included; groups, and the compiled-profile fields (component_counts, compile_tokens_synced, last_synced_at) are populated only when requested here, and returned as null otherwise."
           },
           {
             "name": "authorization",
@@ -1799,14 +1799,14 @@
         }
       }
     },
-    "/v1/faces/{face_id}/teams": {
+    "/v1/faces/{face_id}/groups": {
       "put": {
         "tags": [
           "Faces"
         ],
-        "summary": "Replace Face Teams",
-        "description": "Replace the face's team-membership list with the given team_ids.",
-        "operationId": "replace_face_teams_v1_faces__face_id__teams_put",
+        "summary": "Replace Face Groups",
+        "description": "Replace the face's group-membership list with the given group_ids.",
+        "operationId": "replace_face_groups_v1_faces__face_id__groups_put",
         "parameters": [
           {
             "name": "face_id",
@@ -1839,7 +1839,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReplaceFaceTeamsRequest"
+                "$ref": "#/components/schemas/ReplaceFaceGroupsRequest"
               }
             }
           }
@@ -1850,7 +1850,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FaceTeamsResponse"
+                  "$ref": "#/components/schemas/FaceGroupsResponse"
                 }
               }
             }
@@ -5598,13 +5598,13 @@
         }
       }
     },
-    "/v1/teams": {
+    "/v1/groups": {
       "post": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Create Team",
-        "operationId": "create_team_v1_teams_post",
+        "summary": "Create Group",
+        "operationId": "create_group_v1_groups_post",
         "parameters": [
           {
             "name": "authorization",
@@ -5628,7 +5628,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateTeamRequest"
+                "$ref": "#/components/schemas/CreateGroupRequest"
               }
             }
           }
@@ -5639,7 +5639,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Team"
+                  "$ref": "#/components/schemas/Group"
                 }
               }
             }
@@ -5657,13 +5657,13 @@
         }
       }
     },
-    "/v1/me/teams": {
+    "/v1/me/groups": {
       "get": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "List My Teams",
-        "operationId": "list_my_teams_v1_me_teams_get",
+        "summary": "List My Groups",
+        "operationId": "list_my_groups_v1_me_groups_get",
         "parameters": [
           {
             "name": "authorization",
@@ -5688,7 +5688,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamListResponse"
+                  "$ref": "#/components/schemas/GroupListResponse"
                 }
               }
             }
@@ -5706,21 +5706,21 @@
         }
       }
     },
-    "/v1/teams/{team_id}": {
+    "/v1/groups/{group_id}": {
       "get": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Get Team",
-        "operationId": "get_team_v1_teams__team_id__get",
+        "summary": "Get Group",
+        "operationId": "get_group_v1_groups__group_id__get",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -5746,7 +5746,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Team"
+                  "$ref": "#/components/schemas/Group"
                 }
               }
             }
@@ -5765,18 +5765,18 @@
       },
       "patch": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Update Team",
-        "operationId": "update_team_v1_teams__team_id__patch",
+        "summary": "Update Group",
+        "operationId": "update_group_v1_groups__group_id__patch",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -5801,7 +5801,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateTeamRequest"
+                "$ref": "#/components/schemas/UpdateGroupRequest"
               }
             }
           }
@@ -5812,7 +5812,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Team"
+                  "$ref": "#/components/schemas/Group"
                 }
               }
             }
@@ -5831,18 +5831,18 @@
       },
       "delete": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Delete Team",
-        "operationId": "delete_team_v1_teams__team_id__delete",
+        "summary": "Delete Group",
+        "operationId": "delete_group_v1_groups__group_id__delete",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -5884,21 +5884,21 @@
         }
       }
     },
-    "/v1/teams/{team_id}/members": {
+    "/v1/groups/{group_id}/members": {
       "get": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "List Team Members",
-        "operationId": "list_team_members_v1_teams__team_id__members_get",
+        "summary": "List Group Members",
+        "operationId": "list_group_members_v1_groups__group_id__members_get",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -5924,7 +5924,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamMembersResponse"
+                  "$ref": "#/components/schemas/GroupMembersResponse"
                 }
               }
             }
@@ -5943,18 +5943,18 @@
       },
       "post": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Add Team Members",
-        "operationId": "add_team_members_v1_teams__team_id__members_post",
+        "summary": "Add Group Members",
+        "operationId": "add_group_members_v1_groups__group_id__members_post",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -5979,7 +5979,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AddTeamMembersRequest"
+                "$ref": "#/components/schemas/AddGroupMembersRequest"
               }
             }
           }
@@ -5990,7 +5990,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamMembersResponse"
+                  "$ref": "#/components/schemas/GroupMembersResponse"
                 }
               }
             }
@@ -6008,21 +6008,21 @@
         }
       }
     },
-    "/v1/teams/{team_id}/members/{iam_id}": {
+    "/v1/groups/{group_id}/members/{iam_id}": {
       "delete": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Remove Team Member",
-        "operationId": "remove_team_member_v1_teams__team_id__members__iam_id__delete",
+        "summary": "Remove Group Member",
+        "operationId": "remove_group_member_v1_groups__group_id__members__iam_id__delete",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -6073,21 +6073,21 @@
         }
       }
     },
-    "/v1/teams/{team_id}/tags": {
+    "/v1/groups/{group_id}/tags": {
       "get": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "List Team Tags",
-        "operationId": "list_team_tags_v1_teams__team_id__tags_get",
+        "summary": "List Group Tags",
+        "operationId": "list_group_tags_v1_groups__group_id__tags_get",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -6132,18 +6132,18 @@
       },
       "put": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Set Team Tags",
-        "operationId": "set_team_tags_v1_teams__team_id__tags_put",
+        "summary": "Set Group Tags",
+        "operationId": "set_group_tags_v1_groups__group_id__tags_put",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -6198,18 +6198,18 @@
       },
       "post": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Add Team Tags",
-        "operationId": "add_team_tags_v1_teams__team_id__tags_post",
+        "summary": "Add Group Tags",
+        "operationId": "add_group_tags_v1_groups__group_id__tags_post",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -6263,21 +6263,21 @@
         }
       }
     },
-    "/v1/teams/{team_id}/tags/{tag}": {
+    "/v1/groups/{group_id}/tags/{tag}": {
       "delete": {
         "tags": [
-          "Teams"
+          "Groups"
         ],
-        "summary": "Remove Team Tag",
-        "operationId": "remove_team_tag_v1_teams__team_id__tags__tag__delete",
+        "summary": "Remove Group Tag",
+        "operationId": "remove_group_tag_v1_groups__group_id__tags__tag__delete",
         "parameters": [
           {
-            "name": "team_id",
+            "name": "group_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Team Id"
+              "title": "Group Id"
             }
           },
           {
@@ -8918,7 +8918,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "AddTeamMembersRequest": {
+      "AddGroupMembersRequest": {
         "properties": {
           "iam_id": {
             "anyOf": [
@@ -8947,7 +8947,7 @@
           }
         },
         "type": "object",
-        "title": "AddTeamMembersRequest"
+        "title": "AddGroupMembersRequest"
       },
       "BalanceResponse": {
         "properties": {
@@ -11038,7 +11038,7 @@
         "title": "CreateFaceRequest",
         "description": "Request to create a new face."
       },
-      "CreateTeamRequest": {
+      "CreateGroupRequest": {
         "properties": {
           "name": {
             "type": "string",
@@ -11071,7 +11071,7 @@
         "required": [
           "name"
         ],
-        "title": "CreateTeamRequest"
+        "title": "CreateGroupRequest"
       },
       "DecisionUsage": {
         "properties": {
@@ -11755,11 +11755,11 @@
             ],
             "title": "Tags"
           },
-          "teams": {
+          "groups": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/FaceTeamItem"
+                  "$ref": "#/components/schemas/FaceGroupItem"
                 },
                 "type": "array"
               },
@@ -11767,7 +11767,7 @@
                 "type": "null"
               }
             ],
-            "title": "Teams"
+            "title": "Groups"
           },
           "component_counts": {
             "anyOf": [
@@ -11916,7 +11916,7 @@
         "title": "FaceObject",
         "description": "Public representation of a face."
       },
-      "FaceTeamItem": {
+      "FaceGroupItem": {
         "properties": {
           "id": {
             "type": "string",
@@ -11932,25 +11932,25 @@
           "id",
           "name"
         ],
-        "title": "FaceTeamItem",
-        "description": "Embedded team summary on a face response."
+        "title": "FaceGroupItem",
+        "description": "Embedded group summary on a face response."
       },
-      "FaceTeamsResponse": {
+      "FaceGroupsResponse": {
         "properties": {
-          "teams": {
+          "groups": {
             "items": {
-              "$ref": "#/components/schemas/FaceTeamItem"
+              "$ref": "#/components/schemas/FaceGroupItem"
             },
             "type": "array",
-            "title": "Teams"
+            "title": "Groups"
           }
         },
         "type": "object",
         "required": [
-          "teams"
+          "groups"
         ],
-        "title": "FaceTeamsResponse",
-        "description": "Response shape for ``PUT /v1/faces/{alias}/teams``: the post-update list."
+        "title": "FaceGroupsResponse",
+        "description": "Response shape for ``PUT /v1/faces/{alias}/groups``: the post-update list."
       },
       "FidelityChoiceRequest": {
         "properties": {
@@ -13015,22 +13015,22 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "ReplaceFaceTeamsRequest": {
+      "ReplaceFaceGroupsRequest": {
         "properties": {
-          "team_ids": {
+          "group_ids": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Team Ids"
+            "title": "Group Ids"
           }
         },
         "type": "object",
         "required": [
-          "team_ids"
+          "group_ids"
         ],
-        "title": "ReplaceFaceTeamsRequest",
-        "description": "Request body for ``PUT /v1/faces/{alias}/teams``: set-replace semantics."
+        "title": "ReplaceFaceGroupsRequest",
+        "description": "Request body for ``PUT /v1/faces/{alias}/groups``: set-replace semantics."
       },
       "ResetPasswordRequest": {
         "properties": {
@@ -14054,7 +14054,7 @@
         ],
         "title": "TagsResponse"
       },
-      "Team": {
+      "Group": {
         "properties": {
           "id": {
             "type": "string",
@@ -14150,9 +14150,9 @@
           "id",
           "name"
         ],
-        "title": "Team"
+        "title": "Group"
       },
-      "TeamListResponse": {
+      "GroupListResponse": {
         "properties": {
           "object": {
             "type": "string",
@@ -14161,7 +14161,7 @@
           },
           "data": {
             "items": {
-              "$ref": "#/components/schemas/Team"
+              "$ref": "#/components/schemas/Group"
             },
             "type": "array",
             "title": "Data"
@@ -14171,9 +14171,9 @@
         "required": [
           "data"
         ],
-        "title": "TeamListResponse"
+        "title": "GroupListResponse"
       },
-      "TeamMember": {
+      "GroupMember": {
         "properties": {
           "iam_id": {
             "type": "string",
@@ -14211,9 +14211,9 @@
         "required": [
           "iam_id"
         ],
-        "title": "TeamMember"
+        "title": "GroupMember"
       },
-      "TeamMembersResponse": {
+      "GroupMembersResponse": {
         "properties": {
           "object": {
             "type": "string",
@@ -14222,7 +14222,7 @@
           },
           "data": {
             "items": {
-              "$ref": "#/components/schemas/TeamMember"
+              "$ref": "#/components/schemas/GroupMember"
             },
             "type": "array",
             "title": "Data"
@@ -14232,7 +14232,7 @@
         "required": [
           "data"
         ],
-        "title": "TeamMembersResponse"
+        "title": "GroupMembersResponse"
       },
       "ThreadMessageInput": {
         "properties": {
@@ -14579,7 +14579,7 @@
         ],
         "title": "UpdateMeRequest"
       },
-      "UpdateTeamRequest": {
+      "UpdateGroupRequest": {
         "properties": {
           "name": {
             "anyOf": [
@@ -14616,8 +14616,8 @@
           }
         },
         "type": "object",
-        "title": "UpdateTeamRequest",
-        "description": "Update request for team metadata."
+        "title": "UpdateGroupRequest",
+        "description": "Update request for group metadata."
       },
       "UpdateThreadRequest": {
         "properties": {

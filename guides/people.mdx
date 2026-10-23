@@ -54,7 +54,7 @@ Neither carries an `error_code`: branch on the status. Everything else works as 
 face. Edit it with `PATCH /v1/faces/me` (`name`, `specialty`, `description`,
 `basic_facts` and the rest); its alias, like every face's, cannot be changed. Compile
 into it, build its [style](/guides/style) with `"self_face": "me"`, publish it, share
-it, lock it, add it to teams. With nothing compiled, chatting to it is a `409`, as for
+it, lock it, add it to groups. With nothing compiled, chatting to it is a `409`, as for
 any face.
 
 <Note>
@@ -308,7 +308,7 @@ curl "https://api.faces.sh/v1/faces?owner=head&include_published=true" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-`?owner=` is repeatable and unions across values, like `?team_id=`:
+`?owner=` is repeatable and unions across values, like `?group_id=`:
 
 ```bash
 curl "https://api.faces.sh/v1/faces?owner=head&owner=alice&include_published=true" \
