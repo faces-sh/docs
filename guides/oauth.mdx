@@ -229,7 +229,7 @@ HTTP 422
 | `model_not_supported` | The model is not available on this ChatGPT plan (`400`) | Pick another model. |
 | `oauth_workspace_residency` | The workspace's data-residency setting does not allow this (`401`) | No client-side fix. |
 | `oauth_rate_limited` | The ChatGPT plan's usage limit is reached (`429`) | Try later. When OpenAI says when it resets, the body adds `retry_after_seconds` and `resets_at` (unix time) and the response carries `Retry-After`. |
-| `oauth_incomplete` | ChatGPT stopped its reply before finishing, twice in a row (`502`) | Retry. Nothing was charged. |
+| `oauth_incomplete` | ChatGPT stopped its reply before finishing, twice in a row (`503`) | Retry. Nothing was charged. |
 
 | Field | Description |
 |-------|-------------|
@@ -243,7 +243,7 @@ ChatGPT sometimes ends a reply without finishing it. Faces retries once. If the 
 also stops short, `api_fallback` decides:
 
 - **on:** the request is answered from credits, like any other fallback;
-- **off:** `502 oauth_incomplete`, and nothing is charged.
+- **off:** `503 oauth_incomplete`, and nothing is charged.
 
 The same rule covers interviews and style builds. A style build with `oauth_only` never
 falls back: it retries, then fails.
