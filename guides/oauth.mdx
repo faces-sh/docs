@@ -103,7 +103,7 @@ Returns `204`, even if the code is already gone. Call it when the user gives up.
 |--------|------|---------|
 | `403` | `{"detail": {"error": "connect_plan_required", "message": "..."}}` | Not on the Connect or Pro plan. |
 | `422` | `{"detail": {"error": "device_auth_not_enabled", "message": "...", "settings_url": "...", "settings_steps": [...]}}` | Device codes are not enabled on the ChatGPT account. See the first-time setup above. |
-| `502` / `503` | `{"detail": "..."}` | OpenAI is unreachable or failing. Retry a `503`; cap retries on a `502`. |
+| `503` | `{"detail": "..."}` | Linking could not start or finish just now. The message says which; retry, or start linking again. |
 
 ---
 

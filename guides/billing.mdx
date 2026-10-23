@@ -444,4 +444,4 @@ When starting or continuing an interview thread, a `402` is returned if no payme
 | `needs_credits` | User should top up their credit balance |
 | `plan` | The user's current plan |
 
-A `502` is returned if the upstream LLM provider fails.
+A `503` is returned if the interviewer fails; the message carries a reference. Retry.

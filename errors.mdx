@@ -53,8 +53,7 @@ to retry with, and the same request sent twice produces two different references
 | `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
 | `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
-| `502` | A service we call failed. Not sent by `/v1/chat/completions`, `/v1/responses` or `/v1/messages`, which answer `503` instead. | Cap your retries. |
-| `503` | Something we depend on was busy: "Could not … Please try again. Reference …", with `Retry-After`. On the chat endpoints, also the model failing or being unavailable: see below. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. On the chat endpoints, not when `retryable` is `false`. |
+| `503` | Something we depend on was busy or failed: "Could not … Please try again. Reference …", often with `Retry-After`. The message says what failed and whether anything was charged. On the chat endpoints, also the model failing or being unavailable: see below. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. On the chat endpoints, not when `retryable` is `false`. |
 
 ### `404` where you might expect `403`
 
