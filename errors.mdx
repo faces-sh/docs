@@ -24,6 +24,12 @@ carry `message`, `type`, `code` and `param`, plus `reason` and `retryable` where
 `provider`, when present, is the lab that made the model. An error from the model may read
 only "The model returned an error. Please try again."
 
+When the model fails or cannot be reached, these endpoints answer `503` with `error.type`
+`provider_error`, or `upstream_account_limit` with a `reason`. **`error.retryable` says whether
+to send it again:** `false` means the same request will fail again, as with "This model is not
+available right now. Try another model." A `429` stays a `429`, and a `400` or `422` carries
+the model's own message.
+
 ## The reference code
 
 A `detail` ending in **`Reference <12 hex characters>`** means we logged that exact
@@ -47,8 +53,8 @@ to retry with, and the same request sent twice produces two different references
 | `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
 | `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
-| `502` | A provider we call failed. | Cap your retries. |
-| `503` | Something we depend on was busy: "Could not … Please try again. Reference …", with `Retry-After`. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. |
+| `502` | A service we call failed. Not sent by `/v1/chat/completions`, `/v1/responses` or `/v1/messages`, which answer `503` instead. | Cap your retries. |
+| `503` | Something we depend on was busy: "Could not … Please try again. Reference …", with `Retry-After`. On the chat endpoints, also the model failing or being unavailable: see below. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. On the chat endpoints, not when `retryable` is `false`. |
 
 ### `404` where you might expect `403`
 
