@@ -172,6 +172,10 @@ A request to a face (`alice`, `alice@model`) takes at most **30,000 tokens per m
 before any work, so nothing is charged. A bare model (no face) has only that model's own
 context limit.
 
+**Images aren't supported with a face.** A request to a face that includes an image is a `422`:
+"Images aren't supported with a face yet. Send the request to the model without a face." A bare
+model accepts images as before.
+
 **What a cause reads.** A cause reads the message it answers and **up to the four turns before
 it**, within **30,000 tokens**. If those do not fit, the oldest of them is cut first; the
 message being answered is never cut. Earlier turns are not read and not billed.

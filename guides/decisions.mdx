@@ -22,8 +22,9 @@ Two compatible endpoints, each in its own API's format:
 Address either one as `face@decision-model`: the face's cause for each question guides the
 decision model's answer. A decision model alone (`jev-latest`) is the no-face baseline. A face
 alone, with no questions, gives just its cause. Each path refuses the other's format with a
-`422` that names the right path. Faces, decision models, limits and prices are the same on
-both.
+`422` that names the right path. Faces, limits and prices are the same on both, and so are the
+decision models, except `gpt-6-luna`, which is on `/v1/decisions` only (see
+[`gpt-6-luna`](#gpt-6-luna)).
 
 <Note>
   **A face needs something compiled.** A face with nothing compiled answers `409` (see
@@ -114,15 +115,37 @@ choices mutually exclusive.
 
 ### Where it differs from OpenAI's
 
-- `model` names our decision models (`jev-latest`, `clef`, `clef-flash`) or a
+This section is about `jev-latest`, `clef` and `clef-flash`. `gpt-6-luna` takes OpenAI's own
+request unchanged; see [`gpt-6-luna`](#gpt-6-luna).
+
+- `model` names our decision models (`jev-latest`, `clef`, `clef-flash`, `gpt-6-luna`) or a
   face, not OpenAI's models. A name that is neither is read as a face that does not exist:
   `404` without questions, `422` with them.
-- Image input (`input_image`) is a `422`. Send the situation as text.
+- Images aren't supported. See [Images](#images).
 - Fields OpenAI's API does not document are refused (`422`) rather than ignored. That includes
   `stream`, and messages from any role but `user`.
 - A question the decision model gives no usable answer to comes back as
   `{"type": "refusal", "name": …, "refusal": …}`.
 - With a face, the response also carries `cause` and `causes`.
+
+### `gpt-6-luna`
+
+`gpt-6-luna` is OpenAI's Decisions model, on `/v1/decisions` in OpenAI's own request and
+response shape: send what you would send to OpenAI, with `model` set to `gpt-6-luna` or
+`face@gpt-6-luna`.
+
+- **The request:** OpenAI's text fields as they are. `input` is a string or a message array
+  (any role, including tool calls and their outputs), or `input_json`; instruction parts;
+  `name` on a question is optional; and `prompt_cache_key`, `prompt_cache_options` and
+  `safety_identifier` are accepted. Up to 400 questions, **up to 10 with a face**.
+- **The response:** `id`, `object`, `model`, `answers` and OpenAI's full `usage`, plus `cause`
+  and `causes` with a face.
+- **Price:** from your credits only, never through a linked ChatGPT plan. Input $0.10 per
+  million tokens, cached input $0.01, cache writes $0.125 (kept 30 minutes), output free, plus
+  the markup. [`GET /v1/models?kind=decision`](/guides/chat#supported-models) lists it with
+  `cached_input_cost_per_million_tokens` and `cache_write_cost_per_million_tokens`.
+- **Not on `/v1/systemone`,** which is Jev's format and models: it refuses `gpt-6-luna` with a
+  `400` that points to `/v1/decisions`.
 
 ---
 
@@ -226,8 +249,8 @@ A [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) wo
 A face alone returns `{object: "decision", model, answers: [], cause, usage}` on
 `/v1/decisions`, and `{model, cause, usage}` on `/v1/systemone`.
 
-The decision models are `jev-latest`, `clef` and `clef-flash`. Any other
-value after `@` is a `400`. Ids are case-insensitive: `CLEF-flash` works, and the
+The decision models are `jev-latest`, `clef`, `clef-flash` and, on `/v1/decisions` only,
+`gpt-6-luna`. Any other value after `@` is a `400`. Ids are case-insensitive: `CLEF-flash` works, and the
 response spells it `clef-flash`. Their prices are in
 [`GET /v1/models?kind=decision`](/guides/chat#supported-models): per input token, output
 free, plus the markup in [`GET /v1/rates`](/guides/billing#current-rates).
@@ -246,6 +269,16 @@ A decision can differ from what the same face says in [chat](/guides/chat) on a 
 prompt: a decision is closed-ended, a choice among the options or levels you give, while chat
 is open-ended and may also apply a [style](/guides/style). See
 [Chat and decisions can differ](/introduction#chat-and-decisions-can-differ).
+
+### Images
+
+Images aren't supported on the decision endpoints, or with a face. A request with one is a
+`422`, before any work, so nothing is charged:
+
+- with a face: "Images aren't supported with a face yet. Send the request to the model without a face."
+- with a decision model alone: "Images aren't supported by `<model>` yet. Send the situation as text." (`<model>` is the one you named)
+
+An `instructions` array of text parts is read as text.
 
 ### Limits
 
@@ -295,7 +328,7 @@ decompressed, or it is a `413`.
 - Over a size limit is a `422` naming the size (see [Limits](#limits)), not Jev's `400 max_tokens_exceeded`.
 - A decision model that fails is a `503` (retry), not Jev's `529`. The SDK retries both.
 - With a face, at most 10 questions per request.
-- `box` questions and images are not supported.
+- `box` questions are not supported, and nor are [images](#images).
 - With a face, the response also carries `cause` and `causes`. The SDK ignores fields it doesn't know.
 
 ---
@@ -377,6 +410,7 @@ Every failure is JSON with a `detail` you can show.
 | `404` | No such face, or not one you can use | Check the alias. |
 | `409` | The face has nothing compiled | Compile a source for it. |
 | `422` | The body is the wrong shape (a missing field, criteria that do not fit the type, questions with a face alone or none with a decision model), the other path's format (the message names the right path), or it is over a [limit](#limits) | Read the message. |
+| `422` | An image in the request. [Images](#images) aren't supported here | Send the situation as text. |
 | `429` | Over the per-minute request limit, with `Retry-After`; or Connect or Pro, cause allowance used and `api_fallback` off, with the reset date | Wait `Retry-After` seconds; for the allowance, turn on `api_fallback` or wait for the reset. |
 | `503` | The decision model is unavailable. Nothing is charged | Retry later, or use another decision model. |
 | `503` | The face's cause failed, or the decision model did. The message says which | Retry. |

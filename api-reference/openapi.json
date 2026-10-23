@@ -13879,6 +13879,28 @@
               }
             ],
             "title": "Rush Input Cost Per Million Tokens"
+          },
+          "cache_write_cost_per_million_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Write Cost Per Million Tokens"
+          },
+          "cached_input_cost_per_million_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Cost Per Million Tokens"
           }
         },
         "type": "object",
