@@ -42,6 +42,9 @@ The face's cause steers the model's answer. You do not need to manage this conte
 Each endpoint answers in its standard shape: OpenAI Chat Completions, OpenAI Responses or
 Anthropic Messages, with the face's `cause` added. On `/v1/chat/completions`, read why the
 answer ended from `finish_reason`.
+The reply's `model` is the answering model's id as [`GET /v1/models`](#supported-models) lists
+it, so you can send it back as is: never a dated snapshot or another name for it. A face named
+alone (no `@model`) returns the face's name.
 
 Name the answering model after `@`. A bare alias (`"model": "alice"`) returns the face's cause alone and no answer: see [The face's cause](#the-faces-cause).
 
