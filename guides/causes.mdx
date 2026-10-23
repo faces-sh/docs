@@ -77,6 +77,7 @@ Add `questions`, in System One's format, exactly as on [`/v1/systemone`](/guides
 - Send `messages` or `state`, not both, and not neither (`422`). `questions` goes only with
   `state` (`422`).
 - Not streamed: `stream: true` is a `422`.
+- Text only: an image is a `422`, "Images aren't supported with a face yet. Send the request to the model without a face."
 - The same limits as chat (for `messages`) and decisions (for `state`), and at most 10
   questions. Over a limit is a `422` naming the size, before any work. See
   [GET /v1/rates](/guides/billing#current-rates) `limits`.
