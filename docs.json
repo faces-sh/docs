@@ -46,7 +46,7 @@
               "guides/people",
               "guides/system-faces",
               "guides/sharing",
-              "guides/teams",
+              "guides/groups",
               "guides/chat",
               "guides/decisions",
               "guides/causes",
@@ -82,5 +82,11 @@
       "chatgpt",
       "claude"
     ]
-  }
+  },
+  "redirects": [
+    {
+      "source": "/guides/teams",
+      "destination": "/guides/groups"
+    }
+  ]
 }

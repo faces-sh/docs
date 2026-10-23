@@ -191,11 +191,11 @@ curl https://api.faces.sh/v1/faces \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-Each face item always includes `description`. By default, `tags`, `teams`, and the compiled-profile fields are returned as `null`; opt in with `?include=` (repeatable or comma-separated). Recognized values: `tags`, `teams`, `profile`, `sharing`, `avatar`, `usage`, `owner_avatar`, `owner_follow`.
+Each face item always includes `description`. By default, `tags`, `groups`, and the compiled-profile fields are returned as `null`; opt in with `?include=` (repeatable or comma-separated). Recognized values: `tags`, `groups`, `profile`, `sharing`, `avatar`, `usage`, `owner_avatar`, `owner_follow`.
 
 ```bash
-# Tags + teams + the compiled-profile fields on every item
-curl "https://api.faces.sh/v1/faces?include=tags,teams,profile" \
+# Tags + groups + the compiled-profile fields on every item
+curl "https://api.faces.sh/v1/faces?include=tags,groups,profile" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -208,7 +208,7 @@ curl "https://api.faces.sh/v1/faces?include=tags,teams,profile" \
       "uid": "...",
       "description": "Senior product designer based in Berlin.",
       "tags": ["client:acme", "status:active"],
-      "teams": [
+      "groups": [
         {"id": "...", "name": "Platform Engineering"}
       ],
       "default_model": "gpt-4o-mini",
@@ -238,23 +238,23 @@ one drawn in that window is marked stale as soon as they land.
 The list endpoint also accepts filter parameters that compose:
 
 - `?tag=`: repeatable. Multiple tags use **AND** (face must carry every listed tag). Values are lowercased before match.
-- `?team_id=`: repeatable. Multiple team_ids use **OR** (face must be a member of *any* listed team).
+- `?group_id=`: repeatable. Multiple group_ids use **OR** (face must be a member of *any* listed group).
 - `?owner=`: repeatable. Multiple owners use **OR**. Case-insensitive. Filters by the account that owns the face.
 - `?following=true`: restrict to faces owned by accounts you follow.
 
-Tags and teams combine as `(tag1 AND tag2) ∩ (team1 OR team2)`:
+Tags and groups combine as `(tag1 AND tag2) ∩ (group1 OR group2)`:
 
 ```bash
-# Faces tagged client:acme that are members of either team T1 or team T2
-curl "https://api.faces.sh/v1/faces?tag=client:acme&team_id=T1&team_id=T2" \
+# Faces tagged client:acme that are members of either group G1 or group G2
+curl "https://api.faces.sh/v1/faces?tag=client:acme&group_id=G1&group_id=G2" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-`?team_id=` values that don't exist (or that match a team with no members) return zero matches without an error. Unknown values in `?include=` are silently ignored.
+`?group_id=` values that don't exist (or that match a group with no members) return zero matches without an error. Unknown values in `?include=` are silently ignored.
 
-**Filters narrow published faces too.** With `include_published=true`, `?team_id=`
-returns the published faces a team holds as well as your own. This applies only to
-teams you can read; any other team narrows the published rows to nothing. `?tag=` never matches someone else's face.
+**Filters narrow published faces too.** With `include_published=true`, `?group_id=`
+returns the published faces a group holds as well as your own. This applies only to
+groups you can read; any other group narrows the published rows to nothing. `?tag=` never matches someone else's face.
 
 ### Filter by owner
 
@@ -326,7 +326,7 @@ Two optional owner filters narrow the results by who owns each face. Like `?owne
 - `?from_users=`: **allowlist**, repeatable or comma-separated. Only faces owned by these accounts are returned.
 - `?not_from_users=`: **blocklist**, repeatable or comma-separated. Faces owned by these accounts are excluded.
 
-`from_users` and `not_from_users` are mutually exclusive; passing both returns **`400`**. `?tag=` matches only your own faces; `?team_id=` narrows published faces too, as described above.
+`from_users` and `not_from_users` are mutually exclusive; passing both returns **`400`**. `?tag=` matches only your own faces; `?group_id=` narrows published faces too, as described above.
 
 ---
 
@@ -488,10 +488,10 @@ curl https://api.faces.sh/v1/faces/FACE_ALIAS \
 Works for **any face you can read**: your own, one shared with you, or a
 published one.
 
-`description`, `tags` and `compiled` are always populated. `teams` and the other compiled-profile fields (`compile_tokens_synced`, `last_synced_at`) are `null` unless requested via `?include=`:
+`description`, `tags` and `compiled` are always populated. `groups` and the other compiled-profile fields (`compile_tokens_synced`, `last_synced_at`) are `null` unless requested via `?include=`:
 
 ```bash
-curl "https://api.faces.sh/v1/faces/FACE_ALIAS?include=tags,teams,profile" \
+curl "https://api.faces.sh/v1/faces/FACE_ALIAS?include=tags,groups,profile" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
@@ -641,7 +641,7 @@ Sorted, deduped, lowercase.
 
 ### Filter the face list by tags
 
-`GET /v1/faces` accepts a repeated `?tag=` query parameter. Multiple tags are combined with **AND**: only faces that carry every listed tag are returned. See [List faces](#list-faces) for composition with `?team_id=` and the `?include=` enrichment flag.
+`GET /v1/faces` accepts a repeated `?tag=` query parameter. Multiple tags are combined with **AND**: only faces that carry every listed tag are returned. See [List faces](#list-faces) for composition with `?group_id=` and the `?include=` enrichment flag.
 
 ```bash
 # All faces tagged client:acme
@@ -655,38 +655,38 @@ curl "https://api.faces.sh/v1/faces?tag=client:acme&tag=urgent" \
 
 ---
 
-## Team membership
+## Group membership
 
-Replace a face's team-membership list in one call. Idempotent: sending the same body twice is a no-op.
+Replace a face's group-membership list in one call. Idempotent: sending the same body twice is a no-op.
 
 ```bash
-curl -X PUT https://api.faces.sh/v1/faces/FACE_ALIAS/teams \
+curl -X PUT https://api.faces.sh/v1/faces/FACE_ALIAS/groups \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"team_ids": ["TEAM_UID_1", "TEAM_UID_2"]}'
+  -d '{"group_ids": ["GROUP_UID_1", "GROUP_UID_2"]}'
 ```
 
 ```json
 {
-  "teams": [
-    {"id": "TEAM_UID_1", "name": "Platform Engineering"},
-    {"id": "TEAM_UID_2", "name": "Acme Project"}
+  "groups": [
+    {"id": "GROUP_UID_1", "name": "Platform Engineering"},
+    {"id": "GROUP_UID_2", "name": "Acme Project"}
   ]
 }
 ```
 
-The body's `team_ids` becomes the face's complete membership list: extras get added, missing ones get removed. Send `{"team_ids": []}` to clear all memberships.
+The body's `group_ids` becomes the face's complete membership list: extras get added, missing ones get removed. Send `{"group_ids": []}` to clear all memberships.
 
 ### Authorization
 
 | Case | Status |
 | --- | --- |
 | Caller doesn't own the face | `404` |
-| Listed team_id doesn't exist | `400` |
-| Caller doesn't manage one of the listed teams | `403` |
-| Removing the face from a team the caller doesn't manage | allowed: the face owner has full control over their face's memberships |
+| Listed group_id doesn't exist | `400` |
+| Caller doesn't manage one of the listed groups | `403` |
+| Removing the face from a group the caller doesn't manage | allowed: the face owner has full control over their face's memberships |
 
-The asymmetry on removals mirrors `DELETE /v1/teams/{id}/members/{iam}`: a member's owner can take their face out of any team they're in, but adding to a team always requires the team's manager.
+The asymmetry on removals mirrors `DELETE /v1/groups/{id}/members/{iam}`: a member's owner can take their face out of any group they're in, but adding to a group always requires the group's manager.
 
 ---
 

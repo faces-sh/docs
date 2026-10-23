@@ -16,7 +16,7 @@ the closest or furthest matches to a single face.
 
 ## Scores
 
-A comparison returns a score under `face`. Scores run from `-1` to `1`. Higher is more alike. Only the scores are returned. A score involving a face you don't own, including one shared with you or a teammate's, is given to one decimal place.
+A comparison returns a score under `face`. Scores run from `-1` to `1`. Higher is more alike. Only the scores are returned. A score involving a face you don't own, including one shared with you or held in one of your groups, is given to one decimal place.
 When scores are rounded, neighbors are ordered by the rounded score, and rows with the same
 score are listed by owner, then alias (for `furthest` too, and for which rows make the top `k`).
 When the query face and every face searched are yours, scores and order are exact.
