@@ -1657,7 +1657,7 @@
           "Faces"
         ],
         "summary": "Get Face Neighbors",
-        "description": "Find faces most (or least) similar to a given face.\nEach `similarity` is rounded to one decimal place when either face is not yours.",
+        "description": "Find faces most (or least) similar to a given face.\nEach `similarity` is rounded to one decimal place when either face is not yours.\nWhen it is, rows are ordered, and the top `k` chosen, on the rounded score, and\nrows with the same score are listed by owner and alias.",
         "operationId": "get_face_neighbors_v1_faces__face_id__neighbors_get",
         "parameters": [
           {
@@ -9487,6 +9487,15 @@
             ],
             "title": "Medium"
           },
+          "warnings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
+          },
           "stall_reason": {
             "anyOf": [
               {
@@ -9608,15 +9617,6 @@
             "title": "Rush",
             "description": "True when this compile was queued as a rush: it starts now, at the rush rate.",
             "readOnly": true
-          },
-          "warnings": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Warnings",
-            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
           }
         },
         "type": "object",
@@ -11082,6 +11082,41 @@
           "output_tokens": {
             "type": "integer",
             "title": "Output Tokens"
+          },
+          "input_tokens_details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens Details"
+          },
+          "output_tokens_details": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens Details"
+          },
+          "total_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Tokens"
           }
         },
         "type": "object",
@@ -11483,6 +11518,42 @@
         ],
         "title": "FaceAvatarVersion",
         "description": "One stored avatar version. Metadata only; the picture is a separate GET."
+      },
+      "FaceGroupItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "FaceGroupItem",
+        "description": "Embedded group summary on a face response."
+      },
+      "FaceGroupsResponse": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/FaceGroupItem"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "title": "FaceGroupsResponse",
+        "description": "Response shape for ``PUT /v1/faces/{alias}/groups``: the post-update list."
       },
       "FaceListResponse": {
         "properties": {
@@ -11916,42 +11987,6 @@
         "title": "FaceObject",
         "description": "Public representation of a face."
       },
-      "FaceGroupItem": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "FaceGroupItem",
-        "description": "Embedded group summary on a face response."
-      },
-      "FaceGroupsResponse": {
-        "properties": {
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/FaceGroupItem"
-            },
-            "type": "array",
-            "title": "Groups"
-          }
-        },
-        "type": "object",
-        "required": [
-          "groups"
-        ],
-        "title": "FaceGroupsResponse",
-        "description": "Response shape for ``PUT /v1/faces/{alias}/groups``: the post-update list."
-      },
       "FidelityChoiceRequest": {
         "properties": {
           "pick": {
@@ -12091,6 +12126,186 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "Group": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "protocol": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Protocol"
+          },
+          "member_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Count"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Group"
+      },
+      "GroupListResponse": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "title": "Object",
+            "default": "list"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Group"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "GroupListResponse"
+      },
+      "GroupMember": {
+        "properties": {
+          "iam_id": {
+            "type": "string",
+            "title": "Iam Id"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
+          },
+          "reachable": {
+            "type": "boolean",
+            "title": "Reachable",
+            "default": true
+          },
+          "unreachable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unreachable Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iam_id"
+        ],
+        "title": "GroupMember"
+      },
+      "GroupMembersResponse": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "title": "Object",
+            "default": "list"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/GroupMember"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "GroupMembersResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -12677,6 +12892,17 @@
       },
       "OpenAIDecisionsResponse": {
         "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
           "object": {
             "type": "string",
             "const": "decision",
@@ -12729,7 +12955,7 @@
           "usage"
         ],
         "title": "OpenAIDecisionsResponse",
-        "description": "OpenAI's Decisions response, at POST /v1/decisions. With a face, `cause` and `causes`\n(one per question, in order) are added; a face alone returns `answers: []` and its cause."
+        "description": "OpenAI's Decisions response, at POST /v1/decisions. With a face, `cause` and `causes`\n(one per question, in order) are added; a face alone returns `answers: []` and its cause.\n`gpt-6-luna` answers also carry `id` and OpenAI's full `usage` (`input_tokens_details`\nwith `cached_tokens` and `cache_write_tokens`, `output_tokens_details`, `total_tokens`)."
       },
       "PaymentMethodItem": {
         "properties": {
@@ -13778,6 +14004,28 @@
             ],
             "title": "Input Cost Per Million Tokens"
           },
+          "cached_input_cost_per_million_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Input Cost Per Million Tokens"
+          },
+          "cache_write_cost_per_million_tokens": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cache Write Cost Per Million Tokens"
+          },
           "output_cost_per_million_tokens": {
             "anyOf": [
               {
@@ -13879,28 +14127,6 @@
               }
             ],
             "title": "Rush Input Cost Per Million Tokens"
-          },
-          "cache_write_cost_per_million_tokens": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cache Write Cost Per Million Tokens"
-          },
-          "cached_input_cost_per_million_tokens": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cached Input Cost Per Million Tokens"
           }
         },
         "type": "object",
@@ -14053,186 +14279,6 @@
           "tags"
         ],
         "title": "TagsResponse"
-      },
-      "Group": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "tags": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Tags"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "protocol": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Protocol"
-          },
-          "member_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Member Count"
-          },
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "Group"
-      },
-      "GroupListResponse": {
-        "properties": {
-          "object": {
-            "type": "string",
-            "title": "Object",
-            "default": "list"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/Group"
-            },
-            "type": "array",
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "GroupListResponse"
-      },
-      "GroupMember": {
-        "properties": {
-          "iam_id": {
-            "type": "string",
-            "title": "Iam Id"
-          },
-          "alias": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alias"
-          },
-          "reachable": {
-            "type": "boolean",
-            "title": "Reachable",
-            "default": true
-          },
-          "unreachable_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unreachable Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "iam_id"
-        ],
-        "title": "GroupMember"
-      },
-      "GroupMembersResponse": {
-        "properties": {
-          "object": {
-            "type": "string",
-            "title": "Object",
-            "default": "list"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/GroupMember"
-            },
-            "type": "array",
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "GroupMembersResponse"
       },
       "ThreadMessageInput": {
         "properties": {
@@ -14544,41 +14590,6 @@
         "title": "UpdateFaceRequest",
         "description": "Request to update a face."
       },
-      "UpdateMeRequest": {
-        "properties": {
-          "current_password": {
-            "type": "string",
-            "title": "Current Password"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Username"
-          },
-          "email": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Email"
-          }
-        },
-        "type": "object",
-        "required": [
-          "current_password"
-        ],
-        "title": "UpdateMeRequest"
-      },
       "UpdateGroupRequest": {
         "properties": {
           "name": {
@@ -14618,6 +14629,41 @@
         "type": "object",
         "title": "UpdateGroupRequest",
         "description": "Update request for group metadata."
+      },
+      "UpdateMeRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "title": "Current Password"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password"
+        ],
+        "title": "UpdateMeRequest"
       },
       "UpdateThreadRequest": {
         "properties": {
@@ -14758,6 +14804,15 @@
             ],
             "title": "Medium"
           },
+          "warnings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
+          },
           "stall_reason": {
             "anyOf": [
               {
@@ -14884,15 +14939,6 @@
             "title": "Rush",
             "description": "True when this compile was queued as a rush: it starts now, at the rush rate.",
             "readOnly": true
-          },
-          "warnings": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Warnings",
-            "description": "Advice about the text just saved, as `{code, message}` entries. Empty when there is nothing to report."
           }
         },
         "type": "object",
@@ -15867,8 +15913,18 @@
             "type": "string"
           },
           "instructions": {
-            "title": "Instructions",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/OpenAIInputText"
+                },
+                "type": "array"
+              }
+            ],
+            "title": "Instructions"
           },
           "choices": {
             "anyOf": [
@@ -15983,7 +16039,7 @@
         "type": "object"
       },
       "OpenAIDecisionsRequest": {
-        "description": "OpenAI's Decisions request, at POST /v1/decisions. `model` is `face@decision-model`, a\ndecision model alone, or a face alone (its cause alone, no questions). `input_image` parts\nare refused (422) for now.",
+        "description": "OpenAI's Decisions request, at POST /v1/decisions. `model` is `face@decision-model`, a\ndecision model alone, or a face alone (its cause alone, no questions). An image anywhere\n(`input_image` in `input`, in a question's `instructions` or in a tool's output) is refused\nwith a 422 for now, on every decision model: it is never dropped.",
         "properties": {
           "model": {
             "title": "Model",
@@ -15996,7 +16052,15 @@
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/OpenAIInputMessage"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/OpenAIInputMessage"
+                    },
+                    {
+                      "additionalProperties": true,
+                      "type": "object"
+                    }
+                  ]
                 },
                 "type": "array"
               }
@@ -16005,10 +16069,58 @@
           },
           "questions": {
             "items": {
-              "$ref": "#/components/schemas/OpenAIDecisionQuestion"
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/OpenAIDecisionQuestion"
+                },
+                {
+                  "additionalProperties": true,
+                  "type": "object"
+                }
+              ]
             },
             "title": "Questions",
             "type": "array"
+          },
+          "prompt_cache_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "gpt-6-luna only: passed to OpenAI",
+            "title": "Prompt Cache Key"
+          },
+          "prompt_cache_options": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "gpt-6-luna only: passed to OpenAI",
+            "title": "Prompt Cache Options"
+          },
+          "safety_identifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "gpt-6-luna only: passed to OpenAI",
+            "title": "Safety Identifier"
           }
         },
         "required": [
