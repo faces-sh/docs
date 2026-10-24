@@ -50,7 +50,7 @@ to retry with, and the same request sent twice produces two different references
 | `403` | The credentials are valid, but this key may not use that face or model. | No. |
 | `404` | It does not exist, **or it exists and is not yours.** | No. |
 | `409` | It exists, and is locked or busy right now. | After a delay. |
-| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
+| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. On `/v1/chat/completions`, also a model that used all of `max_tokens` before replying: see [below](#422-when-max_tokens-runs-out-before-the-reply). | No: read the message. |
 | `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
 | `503` | Something we depend on was busy or failed: "Could not … Please try again. Reference …", often with `Retry-After`. The message says what failed and whether anything was charged. On the chat endpoints, also the model failing or being unavailable: see below. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. On the chat endpoints, not when `retryable` is `false`. |
@@ -130,7 +130,45 @@ of value was at fault:
 ```
 
 Anything that reads a status code to decide whether to retry should treat a `422` as
-final.
+final. The one exception is `max_tokens_exhausted`, below: it is fixed by raising
+`max_tokens`, not by sending the same request again.
+
+### `422` when `max_tokens` runs out before the reply
+
+Some models think before they answer and do not return that thinking on
+`/v1/chat/completions`. The thinking counts against `max_tokens`. If it uses all of
+`max_tokens` before the model writes a word, there is no reply to send, and the answer is a
+`422` rather than an empty message:
+
+```json
+{
+  "error": {
+    "type": "max_tokens_exhausted",
+    "code": "max_tokens_exhausted",
+    "message": "The model used all of max_tokens (300) on reasoning it does not return, before writing any reply, so there is no text to send. Raise max_tokens and try again. The tokens were used and are billed; see usage.",
+    "param": "max_tokens",
+    "retryable": true
+  },
+  "usage": { "prompt_tokens": 412, "completion_tokens": 300, "total_tokens": 712 }
+}
+```
+
+**The tokens are billed.** `usage` and `X-Faces-Cost-USD` show the charge. `param` is
+`max_completion_tokens` when that is what the request set.
+
+**On a stream,** the `200` has already been sent, so the stream ends with the chat error
+event in place of the reply, carrying the same code and `usage`, then `data: [DONE]`:
+
+```
+data: {"error": {"message": "The model used all of max_tokens ...", "code": "max_tokens_exhausted", "status": 422}, "detail": {...}}
+```
+
+**The fix is a larger `max_tokens`.** A reply that stops at `max_tokens` after writing some
+text is not an error: it ends with `finish_reason: "length"`, as usual.
+
+`/v1/messages` and `/v1/responses` do not use this code. They already show what happened:
+`/v1/messages` returns the thinking block and `stop_reason: "max_tokens"`, and
+`/v1/responses` returns `status: "incomplete"` with its reason.
 
 ### A `400` that names the rule
 
