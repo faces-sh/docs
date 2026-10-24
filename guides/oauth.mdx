@@ -1,12 +1,12 @@
 ---
 title: Connect ChatGPT
-description: On subscription plans, connect your OpenAI account with OAuth to use Faces wrapped APIs directly with ChatGPT-eligible models without spending API credits or the 5% markup.
+description: On subscription plans, connect your OpenAI account with OAuth to use Faces wrapped APIs directly with eligible Codex models without spending API credits or the 5% markup.
 ---
 
 # Connect ChatGPT
 
 On the **Connect** and **Pro** plans, you can link a ChatGPT account. When you call a
-[wrapper](/introduction#the-causes-api-and-its-wrappers) with a ChatGPT-eligible model, we
+[wrapper](/introduction#the-causes-api-and-its-wrappers) with a Codex-eligible model, we
 route the model's part of the request through your ChatGPT plan. That part then costs you no
 API credits and carries no 5% markup.
 
@@ -14,7 +14,7 @@ API credits and carries no 5% markup.
 then from credits. Linking ChatGPT changes who pays for the model, not for the face.
 
 <Note>
-  This applies at **`POST /v1/responses`** only. A model is ChatGPT-eligible when
+  This applies at **`POST /v1/responses`** only. A model is Codex-eligible when
   `codex_eligible` is `true` in [`GET /v1/models`](/guides/chat#supported-models). Read
   the field rather than keeping a list. See
   [Where it applies](#where-it-applies).
@@ -145,7 +145,7 @@ Returns `204 No Content`, whether or not an account was linked.
 
 ## Where it applies
 
-Only ChatGPT-eligible models at `POST /v1/responses` run on your ChatGPT plan. Send them
+Only Codex-eligible models at `POST /v1/responses` run on your ChatGPT plan. Send them
 there whether or not the user has linked ChatGPT.
 
 | Caller | `POST /v1/responses` | `POST /v1/chat/completions` |
@@ -155,19 +155,19 @@ there whether or not the user has linked ChatGPT.
 
 Every other model, on any endpoint, is paid from credits at the model's listed price plus 5%.
 Sending each model to its `endpoint` in [`GET /v1/models`](/guides/chat#supported-models)
-puts ChatGPT-eligible models at `/v1/responses`. Other models are served there too and paid
+puts Codex-eligible models at `/v1/responses`. Other models are served there too and paid
 from credits, so read `codex_eligible`, not `endpoint`, to know whether a request runs on the
 ChatGPT plan.
 
 <Note>
-  On Connect and Pro subscriptions with no ChatGPT linked, and `api_fallback` off, a ChatGPT-eligible
+  On Connect and Pro subscriptions with no ChatGPT linked, and `api_fallback` off, a Codex-eligible
   model at `/v1/responses` is a `422` rather than a charge. Link ChatGPT, or turn
   `api_fallback` on.
 </Note>
 
 ### The `/chat/completions` guard
 
-A linked user who calls a ChatGPT-eligible model at `/chat/completions` is refused, and
+A linked user who calls a Codex-eligible model at `/chat/completions` is refused, and
 charged nothing:
 
 ```json

@@ -291,7 +291,7 @@ Building a style does not apply it. On a chat wrapper (`/v1/chat/completions`,
 }
 ```
 
-On an account with ChatGPT [linked](/guides/oauth), send a ChatGPT-eligible model to
+On an account with ChatGPT [linked](/guides/oauth), send a Codex-eligible model to
 `/v1/responses`: at `/v1/chat/completions` it is a `409` before `style` is read.
 
 Leave `style` out and no built style is applied. `style` also sets the request's
@@ -431,7 +431,7 @@ Omit both and the face works the medium out from your latest turn.
 
 On Connect or Pro with a [linked ChatGPT account](/guides/oauth), a build runs on that
 account and is **not billed**. That holds for the default model and for any
-[ChatGPT-eligible](/guides/oauth) model you name.
+[Codex-eligible](/guides/oauth) model you name.
 
 **Every other build runs on `gpt-6-luna`, whatever `model` names, and is charged to
 credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/chat#supported-models) plus
@@ -440,7 +440,7 @@ the published markup. This applies on every plan, to automatic builds as well as
 | plan | linked ChatGPT account | no link |
 |------|------------------------|---------|
 | Free | n/a | charged to credits, on `gpt-6-luna` |
-| Connect, Pro | **not billed** with the default model or a ChatGPT-eligible one; charged to credits, on `gpt-6-luna`, with any other model | charged to credits, on `gpt-6-luna` |
+| Connect, Pro | **not billed** with the default model or a Codex-eligible one; charged to credits, on `gpt-6-luna`, with any other model | charged to credits, on `gpt-6-luna` |
 
 A build that loses the link partway (an expired sign-in, or the plan's usage limit) carries
 on with `gpt-6-luna`, and only the part the link did not run is charged. A build typically
@@ -478,12 +478,12 @@ compile.
 account or nothing, never charge":
 
 - **A build that cannot run on the link** (no account linked, or a model that is not
-  ChatGPT-eligible): `409 chatgpt_not_linked`, before a job exists.
+  Codex-eligible): `409 chatgpt_not_linked`, before a job exists.
 - **The link fails partway:** the build stops instead of being charged. Reconnect, then
   build again.
 - **On Free:** `422 oauth_only_unavailable`, and nothing is charged.
 
-Which models are ChatGPT-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/chat#supported-models).
+Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/chat#supported-models).
 
 ---
 
