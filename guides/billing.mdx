@@ -33,8 +33,8 @@ curl https://api.faces.sh/v1/billing/balance \
 | Plan | Price | Compile allowance | Cause allowance | OAuth routing |
 |------|-------|-------------------|-----------------|---------------|
 | Free | $0 | none: pay as you go | none: pay as you go |  |
-| Connect | $17/mo | 250k source tokens/month | 10M tokens/month | ChatGPT (codex models via `/v1/responses`) |
-| Pro | $49/mo | 1M source tokens/month | 25M tokens/month | ChatGPT (codex models via `/v1/responses`) |
+| Connect | $17/mo | 250k source tokens/month | 10M tokens/month | ChatGPT (ChatGPT-eligible models via `/v1/responses`) |
+| Pro | $49/mo | 1M source tokens/month | 25M tokens/month | ChatGPT (ChatGPT-eligible models via `/v1/responses`) |
 
 A subscription is an **allowance**, not a fee per request: compiling and a face's
 [`cause`](/guides/chat#the-faces-cause) are covered up to the plan's limits (see
@@ -44,7 +44,7 @@ at the model's listed price plus 5%, unless it runs free on your ChatGPT subscri
 On the **Free** plan everything is paid as it goes, from your credit balance, at the
 [pay-as-you-go rates](#pay-as-you-go-rates).
 
-On **Connect** and **Pro**, you link your ChatGPT account via OAuth (device-code flow). Codex-eligible models (`codex_eligible: true` in [`/v1/models`](/guides/chat#supported-models)) run free through your ChatGPT subscription **at `POST /v1/responses`**. Other models, or codex models called at `/v1/chat/completions`, are paid from your credits at the model's listed price plus 5%. If your ChatGPT connection is unavailable (e.g., you hit OpenAI's limits), `/v1/responses` requests fall back to credits only when `api_fallback` is enabled, otherwise they return an error rather than charging you. See [Connect ChatGPT](/guides/oauth) for details.
+On **Connect** and **Pro**, you link your ChatGPT account via OAuth (device-code flow). ChatGPT-eligible models (`codex_eligible: true` in [`/v1/models`](/guides/chat#supported-models)) run free through your ChatGPT subscription **at `POST /v1/responses`**. Other models, or ChatGPT-eligible models called at `/v1/chat/completions`, are paid from your credits at the model's listed price plus 5%. If your ChatGPT connection is unavailable (e.g., you hit OpenAI's limits), `/v1/responses` requests fall back to credits only when `api_fallback` is enabled, otherwise they return an error rather than charging you. See [Connect ChatGPT](/guides/oauth) for details.
 
 ### Get current subscription
 
