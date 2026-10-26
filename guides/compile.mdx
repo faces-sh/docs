@@ -380,7 +380,7 @@ the speaker label. A message carrying `from` is refused with `422`:
 |--------|----------|--------|
 | Pause | `POST /compile/threads/{id}/pause` | Ask the compile to stop. Progress preserved. Resume with `/make`. |
 | Reset | `POST /compile/threads/{id}/reset` | Stop the compile and wipe its progress. Source data preserved. Fresh `/make` starts from the beginning. |
-| Delete | `DELETE /compile/threads/{id}` | Remove the thread and what it contributed to the face. |
+| Delete | `DELETE /compile/threads/{id}` | Remove the thread and what it contributed to the face, except its [`basic_facts`](/guides/faces#basic_facts). |
 
 Pause and reset work on documents too (`/compile/documents/{id}/pause` and `/reset`).
 
@@ -488,6 +488,10 @@ curl -X DELETE https://api.faces.sh/v1/compile/documents/DOC_ID \
 
 Deleting a compiled document removes what it contributed to the face, including what it
 taught the face about how it writes. Deleting a thread does the same.
+
+**Except [`basic_facts`](/guides/faces#basic_facts).** Every compile adds to them, and you
+can edit them, so a delete cannot tell what a source wrote from what you did, and leaves them
+as they are. Keep them current yourself with `PATCH /v1/faces/{alias}`.
 
 ---
 
