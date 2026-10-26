@@ -381,12 +381,13 @@ style build.
 </Warning>
 
 A scoped delete removes that medium's style and its versions. What belongs to no single
-medium, such as the build history, is kept.
+medium, such as the build history, is kept. Deleting every style also deletes the build
+history.
 
 To delete uploaded material, use `DELETE /v1/faces/{alias}/corpus` (optionally
-`?medium=`). It deletes the face's corpus threads, and what each one contributed to the
-face, as deleting each thread would. Threads uploaded for compiling are not part of the
-corpus and are kept; delete those one by one. It does not touch the style build.
+`?medium=`). It deletes the threads that came in as corpus uploads, and what each one
+contributed to the face, as deleting each thread would. Threads uploaded for compiling are
+not part of the corpus and are kept; delete those with `DELETE /v1/compile/threads/{id}`. It does not touch the style build.
 **It cannot be undone.**
 
 While the face is busy with another change, it answers `409`; try again shortly. Threads
