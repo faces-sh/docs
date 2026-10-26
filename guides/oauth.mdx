@@ -27,11 +27,14 @@ then from credits. Linking ChatGPT changes who pays for the model, not for the f
 Linking uses a device code: you get a short code, the user enters it at OpenAI in any
 browser, and approves. No browser extension and no callback URL are needed.
 
+Linking, listing and unlinking take a [signed-in session](/authentication#what-needs-a-signed-in-session):
+an API key answers `403`.
+
 ### Step 1: start
 
 ```bash
 curl -X POST https://api.faces.sh/v1/oauth/openai/device/start \
-  -H "Authorization: Bearer YOUR_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 ```json
@@ -63,7 +66,7 @@ The user opens `verification_uri`, enters `user_code`, signs in to ChatGPT, and 
 
 ```bash
 curl -X POST https://api.faces.sh/v1/oauth/openai/device/poll \
-  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"device_auth_id": "uuid"}'
 ```
@@ -90,7 +93,7 @@ Poll every `interval` seconds:
 
 ```bash
 curl -X POST https://api.faces.sh/v1/oauth/openai/device/cancel \
-  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"device_auth_id": "uuid"}'
 ```
@@ -111,7 +114,7 @@ Returns `204`, even if the code is already gone. Call it when the user gives up.
 
 ```bash
 curl https://api.faces.sh/v1/oauth \
-  -H "Authorization: Bearer YOUR_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 ```json
@@ -136,7 +139,7 @@ Show "Connected as you@example.com (Plus)" from `account_email` and `chatgpt_pla
 
 ```bash
 curl -X DELETE https://api.faces.sh/v1/oauth/openai \
-  -H "Authorization: Bearer YOUR_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 Returns `204 No Content`, whether or not an account was linked.

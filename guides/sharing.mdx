@@ -18,13 +18,16 @@ Publishing is the broad switch. Sharing is the precise one. `published: true` ov
 sharing while it is on: a published face is available to everyone regardless of who it
 is shared with.
 
+Sharing and publishing take a [signed-in session](/authentication#what-needs-a-signed-in-session):
+an API key answers `403`.
+
 ---
 
 ## Share with named accounts
 
 ```bash
 curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"shared_with": ["dana", "sam"]}'
 ```
@@ -53,7 +56,7 @@ Revoking is the same call without the name. Once the list is empty, `handle` com
 ```bash
 # dana keeps access, sam loses it immediately
 curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"shared_with": ["dana"]}'
 ```
@@ -80,7 +83,7 @@ their own inference on their own account.
 
 ```bash
 curl -X PATCH "https://api.faces.sh/v1/faces/alice/publish" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"published": true}'
 ```

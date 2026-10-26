@@ -223,11 +223,17 @@ credits to your balance once the subscription starts.
 Checkout is for a **first** subscription. If you already subscribe it answers `409`;
 switch plans instead.
 
+<Note>
+  **Changing a plan, a card or your balance takes a signed-in session.** Switching,
+  cancelling and reactivating a plan, adding, changing and removing a card, and topping up
+  answer `403` to an API key. Send a [JWT](/authentication#jwt-tokens).
+</Note>
+
 ### Switch between Connect and Pro
 
 ```bash
 curl -X POST "https://api.faces.sh/v1/billing/subscription/plan?plan=pro" \
-  -H "Authorization: Bearer YOUR_API_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 Changes your existing subscription in place, prorated, and the new plan's allowances apply
@@ -238,7 +244,7 @@ at once. Returns `{"plan", "previous_plan", "status"}`. Without a subscription i
 
 ```bash
 curl -X POST https://api.faces.sh/v1/billing/subscription/cancel \
-  -H "Authorization: Bearer YOUR_API_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 ```json
@@ -253,7 +259,7 @@ If the user changes their mind before the period ends, undo the cancellation. Sa
 
 ```bash
 curl -X POST https://api.faces.sh/v1/billing/subscription/reactivate \
-  -H "Authorization: Bearer YOUR_API_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 ```json
@@ -272,7 +278,7 @@ An account can save several cards. One of them is the **default**: your subscrip
 
 ```bash
 curl -X POST https://api.faces.sh/v1/billing/card-setup \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"make_default": false}'
 ```
@@ -304,7 +310,7 @@ The newest card comes first. `GET /v1/billing/balance` still returns `has_paymen
 
 ```bash
 curl -X POST https://api.faces.sh/v1/billing/payment-methods/pm_1R.../default \
-  -H "Authorization: Bearer YOUR_API_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 The next renewal, and every top-up that names no card, charges this card. Returns the same shape as the list.
@@ -313,7 +319,7 @@ The next renewal, and every top-up that names no card, charges this card. Return
 
 ```bash
 curl -X DELETE https://api.faces.sh/v1/billing/payment-methods/pm_1R... \
-  -H "Authorization: Bearer YOUR_API_KEY"
+  -H "Authorization: Bearer YOUR_JWT"
 ```
 
 - **Removing the default** makes the newest remaining card the default.
@@ -328,7 +334,7 @@ Returns the same shape as the list.
 
 ```bash
 curl -X POST https://api.faces.sh/v1/billing/topup \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_JWT" \
   -H "Content-Type: application/json" \
   -d '{"amount_usd": 20.00, "payment_method_id": "pm_1R..."}'
 ```

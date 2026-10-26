@@ -48,7 +48,7 @@ It is an ordinary face, with two exceptions:
 | Request | Result |
 | --- | --- |
 | `POST /v1/faces` with alias `me`, in any case | `400`: the alias is reserved. |
-| `DELETE /v1/faces/me` | `409`. Clear what it knows with `DELETE /v1/faces/me/corpus`; closing the account removes it. |
+| `DELETE /v1/faces/me` | `409`. Delete its documents and threads to clear what it holds; closing the account removes it. |
 
 Neither carries an `error_code`: branch on the status. Everything else works as on any
 face. Edit it with `PATCH /v1/faces/me` (`name`, `specialty`, `description`,

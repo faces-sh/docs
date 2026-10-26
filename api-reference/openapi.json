@@ -1874,7 +1874,7 @@
           "Faces"
         ],
         "summary": "Delete Face Corpus",
-        "description": "Delete the source material uploaded for a face.",
+        "description": "Delete the corpus uploaded for a face.",
         "operationId": "delete_face_corpus_v1_faces__face_id__corpus_delete",
         "parameters": [
           {
@@ -7587,7 +7587,7 @@
           "Style"
         ],
         "summary": "Purge Style",
-        "description": "Forget the voice, keep the material.",
+        "description": "Delete the face's style build, and nothing else.",
         "operationId": "purge_style_v1_style_faces__self_face__delete",
         "parameters": [
           {
@@ -7612,10 +7612,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Forget only this style and keep the face's others. Omit on a face with several only with `all=true`.",
+              "description": "Delete only this medium's style build and keep the face's others. Omit on a face with several only with `all=true`.",
               "title": "Medium"
             },
-            "description": "Forget only this style and keep the face's others. Omit on a face with several only with `all=true`."
+            "description": "Delete only this medium's style build and keep the face's others. Omit on a face with several only with `all=true`."
           },
           {
             "name": "all",
@@ -7623,11 +7623,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
-              "description": "Forget EVERY style this face has. Required when the face holds more than one and no `medium` is named.",
+              "description": "Delete EVERY style build this face has. Required when the face holds more than one and no `medium` is named.",
               "default": false,
               "title": "All"
             },
-            "description": "Forget EVERY style this face has. Required when the face holds more than one and no `medium` is named."
+            "description": "Delete EVERY style build this face has. Required when the face holds more than one and no `medium` is named."
           },
           {
             "name": "authorization",
