@@ -363,9 +363,13 @@ curl -X DELETE "https://api.faces.sh/v1/style/faces/alice?all=true" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-Removes the installed style and everything derived from it. **It does not delete the
-material you uploaded**, and it does not touch the face, so you can always build
-again without re-uploading.
+Deletes the style build and its versions. **Nothing else changes.**
+The material you uploaded stays, so you can build again without re-uploading. What the
+face learned about how it writes from its own documents and threads stays too: that
+belongs to those sources, and leaves when you delete them.
+
+**To remove a style completely**, delete that medium's documents and threads, then the
+style build.
 
 <Warning>
   **On a face with more than one style, you must say which.** Omitting both `medium`
@@ -380,7 +384,14 @@ A scoped delete removes that medium's style and its versions. What belongs to no
 medium, such as the build history, is kept.
 
 To delete uploaded material, use `DELETE /v1/faces/{alias}/corpus` (optionally
-`?medium=`). Calling this on a face that has never had a style built is a `200`, not a `404`.
+`?medium=`). It deletes the face's corpus threads, and what each one contributed to the
+face, as deleting each thread would. Threads uploaded for compiling are not part of the
+corpus and are kept; delete those one by one. It does not touch the style build.
+**It cannot be undone.**
+
+While the face is busy with another change, it answers `409`; try again shortly. Threads
+it deleted before stopping stay deleted, and a second call finishes the rest. Calling
+this on a face that has never had a style built is a `200`, not a `404`.
 
 ---
 

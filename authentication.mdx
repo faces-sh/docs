@@ -108,7 +108,7 @@ curl -X POST https://api.faces.sh/v1/auth/api-keys \
 | `budget_usd` | float (optional) | Hard spend cap in USD, from `0` to `999999`. Requests fail with `402` once exhausted. Null = unlimited. |
 | `expires_in_days` | int (optional) | Number of days until the key expires, from `0` to `36500`. `0` or null = never expires. |
 | `scopes` | array (optional) | Permission scopes. Default: `["v1:*"]` (full access). |
-| `allowed_face_ids` | array (optional) | Restrict the key to specific face aliases. Null = all owned faces. |
+| `allowed_face_ids` | array (optional) | Limit the key to these face aliases: it can chat with them and read them, and nothing else. See [Face and model restrictions](#face-and-model-restrictions). Null = no limit. |
 | `allowed_llm_models` | array (optional) | Restrict the key to specific LLM models. Null = all models. |
 
 A value outside any of those ranges, or a field not in the table, is refused with a
@@ -195,9 +195,52 @@ The `allowed_llm_models` field restricts which LLM models can be used:
 { "allowed_llm_models": ["gpt-4o-mini", "claude-sonnet-4-20250514"] }
 ```
 
-Requests using a face or model not in the allowed list are rejected with `403 Forbidden`.
+Requests using a model not in the allowed list are rejected with `403 Forbidden`.
 
 Null or omitted fields allow all faces/models, appropriate for unrestricted keys.
+
+### A key limited to faces
+
+A key with `allowed_face_ids` can do two things, both only for the faces it lists:
+
+- chat with them: chat completions, responses, messages, sessions, causes and decisions;
+- read them: `GET /v1/faces/{alias}` and its avatars.
+
+Each request must name one of its faces. One that names no face answers `403`:
+
+```json
+{ "detail": "This API key is limited to specific faces, so every request made with it must name one of them (`face@model`)." }
+```
+
+One that names a face the key does not list answers `403`:
+
+```json
+{ "detail": "This API key is not authorized to use that face." }
+```
+
+Every other route, listing faces included, answers `403` to such a key:
+
+```json
+{ "detail": "This API key is restricted to certain faces and routes: it can only chat with the faces it lists and read them. Use an unrestricted API key, or sign in, for this request." }
+```
+
+A key without `allowed_face_ids` keeps its owner's access to everything else.
+
+---
+
+## What needs a signed-in session
+
+Some routes change the account itself. They take a JWT, and answer `403` to any API key,
+limited or not:
+
+- closing the account;
+- [linking, listing and unlinking a ChatGPT account](/guides/oauth);
+- [changing a plan, a card or the balance](/guides/billing): switching, cancelling and reactivating a plan, adding, changing and removing a card, topping up, and compile overflow;
+- [sharing, publishing](/guides/sharing) and [deleting](/guides/faces#delete-a-face) a face.
+
+```json
+{ "detail": "This needs a signed-in session, not an API key. Sign in (faces auth:login) and try again." }
+```
 
 ---
 
