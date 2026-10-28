@@ -55,7 +55,8 @@ Add `"conversation": "<id>"` to any request with a face: [chat](/guides/chat)
 
 The face reads the conversation so far, then your new message, and the turn is added to the
 conversation: your message, then the face's reply with its `cause` and the model that wrote it.
-Instructions you send (`system`, `developer`) apply to that request only and are not kept.
+Instructions you send (`system`, `developer`) apply to that request only and are not kept. If
+you send earlier messages too, only those after the last reply in your request are kept.
 
 A face's reply streamed or not is kept the same way. Each turn is billed as it would be without
 a conversation.
@@ -214,7 +215,7 @@ conversations at once.
 |--------|------|----------|
 | `404` | The conversation does not exist, has expired or been closed, or is another account's | `no such conversation, or it has expired` |
 | `404` | A turn sends a `conversation` that is unknown, expired, closed or another account's | `no such conversation, or it has expired. Nothing was charged.` |
-| `404` | A turn names a different face from the one the conversation was opened with | `no such session, or it has expired. Nothing was charged.` |
+| `404` | A turn names a different face from the one the conversation was opened with | `no such conversation, or it has expired. Nothing was charged.` |
 | `422` | Adding a reply or a decision as if a face wrote it | `` a client adds its own messages (`role: user`) only: a face's replies and decisions are written by the server `` |
 | `422` | A premise key used for the first time, with no `description` | `` premise 'rates' is new: give its `description` (what it means, in plain words) `` |
 | `422` | A premise `key` that is not 1 to 64 letters, digits, `_` or `-` | `` a premise `key` is 1-64 letters, digits, _ or - ('has space') `` |
