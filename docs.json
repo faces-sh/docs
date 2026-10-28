@@ -50,7 +50,7 @@
               "guides/chat",
               "guides/decisions",
               "guides/causes",
-              "guides/sessions",
+              "guides/conversations",
               "guides/compile",
               "guides/synthetic-faces",
               "guides/style",
@@ -87,6 +87,10 @@
     {
       "source": "/guides/teams",
       "destination": "/guides/groups"
+    },
+    {
+      "source": "/guides/sessions",
+      "destination": "/guides/conversations"
     }
   ]
 }

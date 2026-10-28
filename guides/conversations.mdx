@@ -1,0 +1,227 @@
+---
+title: Conversations
+description: Keep a whole conversation with one or more faces on the server, send only what is new, and track the premises your decisions depend on.
+---
+
+# Conversations
+
+A **conversation** keeps the whole exchange between your agent and its faces on our side:
+every message, every face's reply with its cause, every decision, and every **premise**, a
+named fact your agent declares. Send only what is new on each turn; the history is put in front
+of it for you, and a face's own earlier words are never taken from the request, so they cannot
+be rewritten.
+
+Conversations follow OpenAI's Conversations API: a conversation has an id, a request joins it
+with `"conversation": "<id>"`, and its entries are **items** in OpenAI's Responses item format.
+They were called sessions; `/v1/sessions` and the `session` field still work and name the same
+thing.
+
+## Start a conversation
+
+```bash
+curl -X POST https://api.faces.sh/v1/conversations \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+```json
+{"object": "conversation", "id": "fs_CONVERSATION_ID", "model": null, "turns": 0, "items": 0,
+ "causes_visible": true, "status": "open",
+ "created_at": "2026-10-28T15:47:11+00:00", "last_used_at": "2026-10-28T15:47:11+00:00",
+ "expires_at": "2026-11-27T15:47:11+00:00"}
+```
+
+All fields are optional:
+
+| Field | Meaning |
+|-------|---------|
+| `model` | A face (`alice`, `owner:alias`). The conversation then takes that face only. Left out, it takes any of your faces. |
+| `causes_visible` | Whether a face sees the other faces' causes. Default `true`. |
+| `items` | The first items: your messages and premises (see [Add items](#add-items)). |
+
+## Take a turn
+
+Add `"conversation": "<id>"` to any request with a face: [chat](/guides/chat)
+(`/v1/chat/completions`, `/v1/responses`, `/v1/messages`), [decisions](/guides/decisions)
+(`/v1/decisions`, `/v1/systemone`) and [causes](/guides/causes). Send only the new message.
+
+```json
+{"model": "alice@MODEL", "conversation": "fs_CONVERSATION_ID",
+ "premises": [{"key": "budget_usd", "value": 50000,
+               "description": "the most we can spend this year"}],
+ "messages": [{"role": "user", "content": "Is this vendor worth a closer look?"}]}
+```
+
+The face reads the conversation so far, then your new message, and the turn is added to the
+conversation: your message, then the face's reply with its `cause` and the model that wrote it.
+Instructions you send (`system`, `developer`) apply to that request only and are not kept.
+
+A face's reply streamed or not is kept the same way. Each turn is billed as it would be without
+a conversation.
+
+## Items
+
+Each entry is an item, in OpenAI's Responses item format, with an `id` (`ci_1`, `ci_2`, ...)
+in the order it was added.
+
+**A message.** Yours have `role: user`. A face's reply has `role: assistant`, the face's
+`name`, its `cause` and the `model` that answered.
+
+```json
+{"id": "ci_7", "type": "message", "role": "assistant", "name": "alice",
+ "model": "MODEL", "cause": "…", "content": "It is worth a closer look: …"}
+```
+
+**A decision.** A `function_call` named `decision` holding the question, and its
+`function_call_output` holding the answer, the `choice` and the face's `cause`. Both name the
+`face` and the `model`, and share a `call_id`.
+
+```json
+{"id": "ci_9", "type": "function_call", "name": "decision", "call_id": "dec_CALL_ID",
+ "face": "alice", "model": "jev-1.14.0",
+ "arguments": "{\"id\": \"sign\", \"type\": \"choice\", \"instructions\": \"Sign the contract?\", \"criteria\": {\"yes\": \"sign it\", \"no\": \"do not sign\"}}"}
+{"id": "ci_10", "type": "function_call_output", "call_id": "dec_CALL_ID",
+ "face": "alice", "model": "jev-1.14.0",
+ "output": "{\"answer\": {\"type\": \"choice\", \"choice\": \"no\", …}, \"choice\": \"no\", \"cause\": \"…\"}"}
+```
+
+**A premise.** A `function_call` named `premise` holding the `key`, and its
+`function_call_output` holding the `value` and its `description`.
+
+```json
+{"id": "ci_2", "type": "function_call", "name": "premise", "call_id": "prem_CALL_ID",
+ "arguments": "{\"key\": \"vendor_certified\"}"}
+{"id": "ci_3", "type": "function_call_output", "call_id": "prem_CALL_ID",
+ "output": "{\"value\": true, \"description\": \"the vendor holds a SOC 2 report\"}"}
+```
+
+Only you add messages with `role: user` and premises. A face's replies and decisions are
+added by the turns that produce them.
+
+## Premises
+
+A premise is a fact your agent's decisions depend on, named by a `key` (1 to 64 letters,
+digits, `_` or `-`), with a `value` and a plain `description`. The description is required
+the first time a key is used, and kept after that.
+
+Send premises with any turn as `premises`, a list of `{key, value, description}`. On
+`/v1/responses` they may also be `premise` items in `input`. Or add them on their own (see
+[Add items](#add-items)).
+
+A newer value of a key replaces it from that point on. Every decision is made with the
+premises in force when it was made, and the conversation keeps each value, so you can always see
+what a decision was made under.
+
+## Add items
+
+`POST /v1/conversations/{conversation_id}/items` adds your messages and premises, at most 20
+at a time, as `items` (a premise may be written `{key, value, description}`) or as `premises`.
+
+```bash
+curl -X POST https://api.faces.sh/v1/conversations/fs_CONVERSATION_ID/items \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"premises": [{"key": "vendor_certified", "value": false}]}'
+```
+
+```json
+{"object": "list", "data": [{"id": "ci_11", "type": "function_call", "name": "premise", …},
+                            {"id": "ci_12", "type": "function_call_output", …}],
+ "first_id": "ci_11", "last_id": "ci_12", "has_more": false,
+ "premises": {"vendor_certified": {"value": false,
+                                   "description": "the vendor holds a SOC 2 report"},
+              "budget_usd": {"value": 50000,
+                             "description": "the most we can spend this year"}},
+ "decisions_made_under_old_values": [
+   {"call_id": "dec_CALL_ID", "question": {"id": "sign", "instructions": "Sign the contract?", …},
+    "choice": "no", "face": "alice",
+    "changed": {"vendor_certified": {"was": true, "now": false}}}]}
+```
+
+`premises` is each key's current value. `decisions_made_under_old_values` lists every
+earlier decision made while a key you just changed held a different value, so your agent can
+decide which to revisit. Nothing is decided again for you.
+
+## Several faces
+
+A conversation opened without `model` takes any of your faces, each turn naming its face in
+`model`. Each face reads its own replies as its own, and the others' as someone else's,
+labelled with their name. It reads their causes too, unless `causes_visible` is `false` on
+the conversation or on the turn.
+
+## Read a conversation
+
+`GET /v1/conversations/{conversation_id}` returns the conversation, as on creation, with
+`items`, `turns` and `last_used_at` up to date.
+
+`GET /v1/conversations/{conversation_id}/items` returns every item in order, as `data`, with
+the current `premises`.
+
+## Compact
+
+`POST /v1/conversations/{conversation_id}/compact` returns a summary of one face's position
+over the conversation, in the face's own terms, stored under a `compaction_id`. In a
+conversation open to any face, name the face in `model`.
+
+```bash
+curl -X POST https://api.faces.sh/v1/conversations/fs_CONVERSATION_ID/compact \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "alice"}'
+```
+
+```json
+{"object": "cause.compaction", "compaction_id": "fcmp_COMPACTION_ID",
+ "session_id": "fs_CONVERSATION_ID", "cause": "…", "turns": 8,
+ "created_at": "2026-10-28T15:49:02+00:00", "expires_at": "2026-11-27T15:49:02+00:00",
+ "usage": {"input_tokens": 5210, "output_tokens": 640}}
+```
+
+Add `"compaction": "<compaction_id>"` to a later request with the same face to have its cause
+read the summary. A compaction is held open like a cause: see [Speed](/guides/causes#speed).
+
+## Close a conversation
+
+`DELETE /v1/conversations/{conversation_id}` closes it:
+`{"id": "fs_CONVERSATION_ID", "object": "conversation.deleted", "deleted": true}`. A closed
+conversation takes no more turns and cannot be read. Its compactions stay usable until they
+expire.
+
+## Cost
+
+- Opening, reading, adding items to and closing a conversation are free. A turn costs what it
+  costs without one.
+- **Compacting** is billed at the [cause rate](/guides/billing#current-rates) on the tokens it
+  reads and writes, `usage.input_tokens + usage.output_tokens`. On Connect and Pro it counts
+  against the cause [allowance](/guides/billing#allowances).
+- **Using** a compaction adds its text to what the cause reads, and is billed with that cause.
+
+Creating a conversation, adding items and compacting count against your plan's per-minute
+[rate limit](/errors#rate-limits).
+
+## Expiry
+
+A conversation expires 30 days after it was last used, and is then deleted with everything in
+it. A compaction expires 30 days after it is written. Closing your account deletes your
+conversations at once.
+
+## Errors
+
+`detail` is a string.
+
+| Status | When | `detail` |
+|--------|------|----------|
+| `404` | The conversation does not exist, has expired or been closed, or is another account's | `no such conversation, or it has expired` |
+| `404` | A turn sends a `conversation` that is unknown, expired, closed or another account's | `no such conversation, or it has expired. Nothing was charged.` |
+| `404` | A turn names a different face from the one the conversation was opened with | `no such session, or it has expired. Nothing was charged.` |
+| `422` | Adding a reply or a decision as if a face wrote it | `` a client adds its own messages (`role: user`) only: a face's replies and decisions are written by the server `` |
+| `422` | A premise key used for the first time, with no `description` | `` premise 'rates' is new: give its `description` (what it means, in plain words) `` |
+| `422` | A premise `key` that is not 1 to 64 letters, digits, `_` or `-` | `` a premise `key` is 1-64 letters, digits, _ or - ('has space') `` |
+| `422` | `premises` or `causes_visible` on a turn with no `conversation` | `` `premises` and `causes_visible` belong to a conversation: send its id as `conversation` `` |
+| `422` | `conversation` and `session` both sent, with different ids | `` send `conversation` (or its old name `session`), not both `` |
+| `422` | `causes_visible` that is not `true` or `false` | `` `causes_visible` is true or false `` |
+| `422` | Compacting a conversation open to any face, without `model` | `` this conversation takes any face: name the one to compact in `model` `` |
+| `402` | A turn or a compaction with no credit left | See [Billing](/guides/billing). |
+| `403` | The API key may not use the face | See [Errors](/errors). |
+| `429` | The per-minute rate limit, or the cause allowance is used and `api_fallback` is off | Names the limit. |

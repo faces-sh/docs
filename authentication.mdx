@@ -203,7 +203,7 @@ Null or omitted fields allow all faces/models, appropriate for unrestricted keys
 
 A key with `allowed_face_ids` can do two things, both only for the faces it lists:
 
-- chat with them: chat completions, responses, messages, sessions, causes and decisions;
+- chat with them: chat completions, responses, messages, conversations, causes and decisions;
 - read them: `GET /v1/faces/{alias}` and its avatars.
 
 Each request must name one of its faces. One that names no face answers `403`:
