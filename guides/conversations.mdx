@@ -97,12 +97,8 @@ in the order it was added.
  "output": "{\"value\": true, \"description\": \"the vendor holds a SOC 2 report\"}"}
 ```
 
-**A reopening.** A `function_call` named `reopen` holding the decision's id, and its
-`function_call_output` holding the question, the `choice`, the `face`, what `changed`, and
-`via` (see [What a decision depends on](#what-a-decision-depends-on)).
-
-Only you add messages with `role: user` and premises. A face's replies, decisions and
-reopenings are added by the turns and changes that produce them.
+Only you add messages with `role: user` and premises. A face's replies and decisions are
+added by the turns that produce them.
 
 ## Premises
 
@@ -114,39 +110,9 @@ Send premises with any turn as `premises`, a list of `{key, value, description}`
 `/v1/responses` they may also be `premise` items in `input`. Or add them on their own (see
 [Add items](#add-items)).
 
-A newer value of a key replaces it from that point on. The conversation keeps each value, so
-you can always see what a decision was made under.
-
-## What a decision depends on
-
-A decision request in a conversation can say what the decision depends on, as `depends_on`: a
-list of premise keys and earlier decisions' ids. Each decision's id comes back in
-`decision_ids`.
-
-```json
-{"model": "alice@jev-latest", "conversation": "fs_CONVERSATION_ID",
- "state": "A vendor decision for our data platform.",
- "depends_on": ["dec_PICK_ID"],
- "questions": {"sign": {"type": "choice", "instructions": "Sign the two-year contract?",
-                        "criteria": {"yes": "do it", "no": "do not"}}}}
-```
-
-```json
-{"model": "alice@jev-1.14.0", "answers": {…}, "cause": "…", "causes": {…},
- "decision_ids": {"sign": "dec_SIGN_ID"}, "decisions_reopened": [], "usage": {…}}
-```
-
-Every entry must name a premise or a decision already in the conversation, or a premise sent
-with the same request. Without `depends_on`, a decision depends on every premise in force when
-it was made.
-
-When a premise changes, the decisions that depend on it are **reopened**, then the decisions
-that depend on a reopened one, and so on. Every other decision stays as it was. Each reopening
-is added to the conversation as a `reopen` item after the change, so the face reads, on later
-turns, which decisions no longer stand and why. Nothing is decided again for you.
-
-`decisions_reopened` lists what a decision request's own `premises` reopened. Adding items lists
-it as `decisions_made_under_old_values` (see below).
+A newer value of a key replaces it from that point on. Every decision is made with the
+premises in force when it was made, and the conversation keeps each value, so you can always see
+what a decision was made under.
 
 ## Add items
 
@@ -171,13 +137,12 @@ curl -X POST https://api.faces.sh/v1/conversations/fs_CONVERSATION_ID/items \
  "decisions_made_under_old_values": [
    {"call_id": "dec_CALL_ID", "question": {"id": "sign", "instructions": "Sign the contract?", …},
     "choice": "no", "face": "alice",
-    "changed": {"vendor_certified": {"was": true, "now": false}}, "via": null}]}
+    "changed": {"vendor_certified": {"was": true, "now": false}}}]}
 ```
 
 `premises` is each key's current value. `decisions_made_under_old_values` lists every
-decision the change reopened: those that depend on a changed key, with `via: null`, and those
-that depend on a reopened decision, with `via` naming it. A `reopen` item for each is added
-after the change. Nothing is decided again for you.
+earlier decision made while a key you just changed held a different value, so your agent can
+decide which to revisit. Nothing is decided again for you.
 
 ## Several faces
 
@@ -251,8 +216,6 @@ conversations at once.
 | `404` | The conversation does not exist, has expired or been closed, or is another account's | `no such conversation, or it has expired` |
 | `404` | A turn sends a `conversation` that is unknown, expired, closed or another account's | `no such conversation, or it has expired. Nothing was charged.` |
 | `404` | A turn names a different face from the one the conversation was opened with | `no such conversation, or it has expired. Nothing was charged.` |
-| `422` | `depends_on` names a premise or decision not in the conversation | `` `depends_on` names no premise or decision in this conversation: no_such_key `` |
-| `422` | `depends_on` with no `conversation` | `` `depends_on` belongs to a decision in a conversation: send its id as `conversation` `` |
 | `422` | Adding a reply or a decision as if a face wrote it | `` a client adds its own messages (`role: user`) only: a face's replies and decisions are written by the server `` |
 | `422` | A premise key used for the first time, with no `description` | `` premise 'rates' is new: give its `description` (what it means, in plain words) `` |
 | `422` | A premise `key` that is not 1 to 64 letters, digits, `_` or `-` | `` a premise `key` is 1-64 letters, digits, _ or - ('has space') `` |
