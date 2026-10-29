@@ -74,17 +74,35 @@ in the order it was added.
  "model": "MODEL", "cause": "…", "content": "It is worth a closer look: …"}
 ```
 
-**A decision.** A `function_call` named `decision` holding the question, and its
-`function_call_output` holding the answer, the `choice` and the face's `cause`. Both name the
-`face` and the `model`, and share a `call_id`.
+**A decision.** One item of type `decision`, in the same shape whichever route asked it
+(`source` says which: `decisions` or `systemone`). The `question` has its `name`, `type`
+(`predicate`, `choice` or `score`), `instructions` and `options`; the `answer` has the `result`
+(the probability for a predicate, the chosen value for a choice, the number for a score), the
+`probabilities` and the `confidence`. It also carries the face's `cause`, the `face` and the
+decision `model`. Its `call_id` is the decision's id.
 
 ```json
-{"id": "ci_9", "type": "function_call", "name": "decision", "call_id": "dec_CALL_ID",
+{"id": "ci_4", "type": "decision", "call_id": "dec_CALL_ID", "source": "decisions",
  "face": "alice", "model": "jev-1.14.0",
- "arguments": "{\"id\": \"sign\", \"type\": \"choice\", \"instructions\": \"Sign the contract?\", \"criteria\": {\"yes\": \"sign it\", \"no\": \"do not sign\"}}"}
-{"id": "ci_10", "type": "function_call_output", "call_id": "dec_CALL_ID",
- "face": "alice", "model": "jev-1.14.0",
- "output": "{\"answer\": {\"type\": \"choice\", \"choice\": \"no\", …}, \"choice\": \"no\", \"cause\": \"…\"}"}
+ "question": {"name": "planner", "type": "choice", "instructions": "Hire an outside planner?",
+              "options": [{"value": "yes"}, {"value": "no"}]},
+ "answer": {"result": "no", "confidence": 0.68,
+            "probabilities": [{"value": "yes", "probability": 0.16}, {"value": "no", "probability": 0.84}]},
+ "cause": "…"}
+```
+
+A conversation that holds decisions made before 29 October 2026 shows each of those as a
+`function_call` named `decision` and its `function_call_output`, until it expires.
+
+**A face's tool call.** When you send `tools` with a turn and the face calls one, the call is
+kept as a `function_call` naming the `face` and the `model`, and the result you send back
+on the next turn is kept as its `function_call_output`. On that next turn send only the
+result: the conversation already holds the call it answers.
+
+```json
+{"id": "ci_3", "type": "function_call", "name": "get_weather", "call_id": "call_CALL_ID",
+ "arguments": "{\"city\":\"Lisbon\"}", "face": "alice", "model": "MODEL"}
+{"id": "ci_4", "type": "function_call_output", "call_id": "call_CALL_ID", "output": "18C and sunny"}
 ```
 
 **A premise.** A `function_call` named `premise` holding the `key`, and its
@@ -97,8 +115,8 @@ in the order it was added.
  "output": "{\"value\": true, \"description\": \"the vendor holds a SOC 2 report\"}"}
 ```
 
-Only you add messages with `role: user` and premises. A face's replies and decisions are
-added by the turns that produce them.
+Only you add messages with `role: user` and premises. A face's replies, decisions and tool
+calls are added by the turns that produce them.
 
 ## Premises
 
