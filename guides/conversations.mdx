@@ -174,8 +174,39 @@ the conversation or on the turn.
 `GET /v1/conversations/{conversation_id}` returns the conversation, as on creation, with
 `items`, `turns` and `last_used_at` up to date.
 
-`GET /v1/conversations/{conversation_id}/items` returns every item in order, as `data`, with
-the current `premises`.
+`GET /v1/conversations/{conversation_id}/items` lists the items a page at a time, like
+OpenAI's list of conversation items. **Newest first** by default.
+
+| Parameter | What it does |
+|---|---|
+| `limit` | Items per page, `1` to `100`. Default `20`. |
+| `order` | `desc` (newest first, the default) or `asc` (oldest first). |
+| `after` | An item `id`: start the page after it. Pass the last page's `last_id` to get the next page. |
+| `format` | `faces` (the default) or `openai`. |
+
+```bash
+curl "https://api.faces.sh/v1/conversations/fs_CONVERSATION_ID/items?limit=2" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```json
+{"object": "list",
+ "data": [
+   {"id": "ci_3", "type": "function_call_output", "call_id": "prem_CALL_ID",
+    "output": "{\"value\": \"50k\", \"description\": \"the offsite budget\"}"},
+   {"id": "ci_2", "type": "function_call", "name": "premise", "call_id": "prem_CALL_ID",
+    "arguments": "{\"key\": \"budget\"}"}],
+ "first_id": "ci_3", "last_id": "ci_2", "has_more": true,
+ "premises": {"budget": {"value": "50k", "description": "the offsite budget"}}}
+```
+
+`has_more` is `true` while there are more pages. With `format=faces`, every page also carries
+the `premises` in force now, all of them.
+
+`format=openai` returns only the item types and fields OpenAI defines, so you can pass them
+to anything that reads OpenAI's conversation items. Our own fields are left out: the face's
+name, the model, the cause and the premises. A decision becomes a call to a `decision` tool
+followed by its result. Any other `format` is a `422`.
 
 ## Compact
 
