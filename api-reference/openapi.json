@@ -8827,7 +8827,7 @@
           "Sessions"
         ],
         "summary": "List Items",
-        "description": "The conversation's items, oldest first, each with its `id`, plus the premises in force\nnow (each key's latest reading).",
+        "description": "The conversation's items, paged as OpenAI's list of conversation items is:\n`limit` (1 to 100, default 20) at a time, `order` `desc` (newest first, the default) or\n`asc`, starting after the item `after`; `first_id`, `last_id` and `has_more` say where the\npage sits. `format=faces` (the default) keeps our fields and adds the premises in force now\n(each key's latest reading, whole on every page); `format=openai` returns only OpenAI's\nitem types and fields.",
         "operationId": "list_items_v1_conversations__conversation_id__items_get",
         "parameters": [
           {
@@ -8837,6 +8837,55 @@
             "schema": {
               "type": "string",
               "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "default": "desc",
+              "title": "Order"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "faces",
+              "title": "Format"
             }
           },
           {
