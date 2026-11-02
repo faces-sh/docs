@@ -163,6 +163,7 @@ curl https://api.faces.sh/v1/rates
     "chat": {
       "max_message_tokens": 30000,
       "max_request_tokens": 62000,
+      "face_block_tokens": 8526,
       "cause_reads_at_most_tokens": 30000,
       "subscription_cause_reads_at_most_tokens": 10000
     },
@@ -194,8 +195,10 @@ curl https://api.faces.sh/v1/rates
 ```
 
 Per-model token prices are in [`GET /v1/models`](/guides/chat#supported-models); `models.markup` is what is
-added to them. `limits.requests_per_minute` is the per-account [rate limit](/errors#rate-limits) by
-plan. Your own usage against the allowances is in `GET /v1/billing/subscription`.
+added to them. `limits.chat.face_block_tokens` is the most a face adds to a chat request, and
+`limits.chat.max_request_tokens` the request limit for a model with no listed limit (see
+[Limits on a face](/guides/chat#limits-on-a-face)). `limits.requests_per_minute` is the
+per-account [rate limit](/errors#rate-limits) by plan. Your own usage against the allowances is in `GET /v1/billing/subscription`.
 
 ### Pay-as-you-go rates
 

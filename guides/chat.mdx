@@ -167,9 +167,18 @@ request to a bare model (no face) accepts a transcript with causes in it.
 
 ### Limits on a face
 
-A request to a face (`alice`, `alice@model`) takes at most **30,000 tokens per message** and
-**62,000 tokens per request**, on all three endpoints. Over either is a `422` naming the size,
-before any work, so nothing is charged. A bare model (no face) has only that model's own
+A request to a face takes at most **30,000 tokens per message**, on all three endpoints. Per
+request:
+
+- `alice@model` takes up to that model's own input limit, less what the face adds to the
+  request. GET `/v1/models` lists the figure for each model as `max_request_tokens_with_face`,
+  and GET `/v1/rates` gives the most a face adds as `limits.chat.face_block_tokens`. The face's
+  profile addendum is not part of that figure, so keep it in mind on a request near the limit.
+- A model with no listed limit, a face alone (`alice`), and a formula on `/v1/responses` or
+  `/v1/messages` take at most **62,000 tokens per request**.
+
+A cause you send with `cause` counts toward the request. Over any limit is a `422` naming the
+size, before any work, so nothing is charged. A bare model (no face) has only that model's own
 context limit.
 
 **Images aren't supported with a face.** A request to a face that includes an image is a `422`:
@@ -395,6 +404,8 @@ Returns every model you can name in the `model` field, **once each**, with its p
 | `markup_applies` | `false` when the listed price is what is charged, with no markup on top. |
 | `token_basis` | What the price counts, when it is not the request: `source` for the compile model, which prices the source text compiled. |
 | `included_tokens_per_month` | Tokens each plan includes per month before the price applies, by plan (`free`, `connect`, `pro`). |
+| `max_input_tokens` | The most input the model takes, in tokens, or `null` where it is not listed. |
+| `max_request_tokens_with_face` | The most a request to a face on this model (`alice@model`) may carry, in tokens: `max_input_tokens` less what the face adds, or 62,000 where the model's limit is not listed. See [Limits on a face](#limits-on-a-face). `null` for models that are not chat models. |
 
 Drive your model picker from this endpoint rather than hardcoding a list.
 
