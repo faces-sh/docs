@@ -39,8 +39,13 @@ curl -X POST https://api.faces.sh/v1/causes \
 ```
 
 Send earlier causes back in the transcript, as on chat.
-The cause reads the last message and up to the four turns before it, within 30,000 tokens: see
-[what a cause reads](/guides/chat#limits-on-a-face).
+The cause reads every message you send. A request takes at most 30,000 tokens, across all its
+messages: over that is a `422` naming the limit, before any work, so nothing is charged:
+
+```json
+{"detail": "the request is 40001 tokens; a face takes at most 30000 per request"}
+```
+
 To keep a conversation and compact it, add `conversation` and `compaction`: see [Conversations](/guides/conversations).
 
 ## A situation
@@ -78,9 +83,10 @@ Add `questions`, in System One's format, exactly as on [`/v1/systemone`](/guides
   `state` (`422`).
 - Not streamed: `stream: true` is a `422`.
 - Text only: an image is a `422`, "Images aren't supported with a face yet. Send the request to the model without a face."
-- The same limits as chat (for `messages`) and decisions (for `state`), and at most 10
-  questions. Over a limit is a `422` naming the size, before any work. See
-  [GET /v1/rates](/guides/billing#current-rates) `limits`.
+- With `messages`, at most 30,000 tokens per request (`limits.causes` in
+  [GET /v1/rates](/guides/billing#current-rates)). With `state`, the same limits as decisions
+  (`limits.decisions.face`), and at most 10 questions. Over a limit is a `422` naming the size,
+  before any work.
 - A face with nothing compiled has no cause to give: `409`, and nothing is charged. A name that
   is not one of your faces, or one shared with you, is a `404`.
 - Charged per cause. If one question fails, the causes already returned are charged, as on decisions.

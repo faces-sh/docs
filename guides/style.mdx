@@ -300,7 +300,9 @@ is a `400`.
 
 **A style adds input tokens.** It adds roughly 2,000 to 3,500 input tokens to every request
 that sends it, billed as model input, or free on the [ChatGPT route](/guides/oauth). The exact
-figure for each request is in its `usage`. It applies
+figure for each request is in its `usage`. It is not part of the
+[request limit on a face](/guides/chat#limits-on-a-face): on a request near the model's limit,
+leave about 4,000 tokens for it. It applies
 only on the chat wrappers: [causes](/guides/causes) and [decisions](/guides/decisions) do not
 take it.
 

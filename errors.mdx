@@ -27,8 +27,12 @@ only "The model returned an error. Please try again."
 When the model fails or cannot be reached, these endpoints answer `503` with `error.type`
 `provider_error`, or `upstream_account_limit` with a `reason`. **`error.retryable` says whether
 to send it again:** `false` means the same request will fail again, as with "This model is not
-available right now. Try another model." A `429` stays a `429`, and a `400` or `422` carries
-the model's own message.
+available right now. Try another model." A `429` stays a `429`, and a `400`, `413` or `422`
+carries the model's own status and message, such as a request longer than the model takes.
+
+On a face request that is not streamed, a model that has not finished its reply within 300
+seconds is also a `503`, and the message says so. Sending the same request again will likely
+stop the same way: ask for a shorter reply, or set `stream: true`.
 
 ## The reference code
 
