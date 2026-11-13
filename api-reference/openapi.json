@@ -8656,8 +8656,69 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a conversation. `model` (a face) is optional: without it the conversation takes any\nface. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings.",
+        "description": "Open a state. `model` (a face) is optional: without it the state takes any\nface. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings.",
         "operationId": "create_conversation_v1_conversations_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/states": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Create Conversation",
+        "description": "Open a state. `model` (a face) is optional: without it the state takes any\nface. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings.",
+        "operationId": "create_conversation_v1_states_post",
         "parameters": [
           {
             "name": "authorization",
@@ -8717,6 +8778,7 @@
         ],
         "summary": "Get Conversation",
         "operationId": "get_conversation_v1_conversations__conversation_id__get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "conversation_id",
@@ -8772,6 +8834,118 @@
         "summary": "Close Conversation",
         "description": "Closes it: no more turns join it. Its items go with it when it expires.",
         "operationId": "close_conversation_v1_conversations__conversation_id__delete",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/states/{conversation_id}": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Get Conversation",
+        "operationId": "get_conversation_v1_states__conversation_id__get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Close Conversation",
+        "description": "Closes it: no more turns join it. Its items go with it when it expires.",
+        "operationId": "close_conversation_v1_states__conversation_id__delete",
         "parameters": [
           {
             "name": "conversation_id",
@@ -8829,6 +9003,7 @@
         "summary": "List Items",
         "description": "The conversation's items, paged as OpenAI's list of conversation items is:\n`limit` (1 to 100, default 20) at a time, `order` `desc` (newest first, the default) or\n`asc`, starting after the item `after`; `first_id`, `last_id` and `has_more` say where the\npage sits. `format=faces` (the default) keeps our fields and adds the premises in force now\n(each key's latest reading, whole on every page); `format=openai` returns only OpenAI's\nitem types and fields.",
         "operationId": "list_items_v1_conversations__conversation_id__items_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "conversation_id",
@@ -8933,6 +9108,180 @@
         "summary": "Add Items",
         "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description}]). A newer reading of a key replaces it from here on, and the\nresponse lists `decisions_made_under_old_values`: every earlier decision made while a key\nread here held a different value. Nothing is re-decided.",
         "operationId": "add_items_v1_conversations__conversation_id__items_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/states/{conversation_id}/items": {
+      "get": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "List Items",
+        "description": "The conversation's items, paged as OpenAI's list of conversation items is:\n`limit` (1 to 100, default 20) at a time, `order` `desc` (newest first, the default) or\n`asc`, starting after the item `after`; `first_id`, `last_id` and `has_more` say where the\npage sits. `format=faces` (the default) keeps our fields and adds the premises in force now\n(each key's latest reading, whole on every page); `format=openai` returns only OpenAI's\nitem types and fields.",
+        "operationId": "list_items_v1_states__conversation_id__items_get",
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(asc|desc)$",
+              "default": "desc",
+              "title": "Order"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "faces",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Add Items",
+        "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description}]). A newer reading of a key replaces it from here on, and the\nresponse lists `decisions_made_under_old_values`: every earlier decision made while a key\nread here held a different value. Nothing is re-decided.",
+        "operationId": "add_items_v1_states__conversation_id__items_post",
         "parameters": [
           {
             "name": "conversation_id",
@@ -9002,6 +9351,76 @@
         "summary": "Compact Conversation",
         "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model`.",
         "operationId": "compact_conversation_v1_conversations__conversation_id__compact_post",
+        "deprecated": true,
+        "parameters": [
+          {
+            "name": "conversation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Conversation Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/states/{conversation_id}/compact": {
+      "post": {
+        "tags": [
+          "Sessions"
+        ],
+        "summary": "Compact Conversation",
+        "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model`.",
+        "operationId": "compact_conversation_v1_states__conversation_id__compact_post",
         "parameters": [
           {
             "name": "conversation_id",
@@ -14552,6 +14971,28 @@
               }
             ],
             "title": "Rush Input Cost Per Million Tokens"
+          },
+          "max_input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Input Tokens"
+          },
+          "max_request_tokens_with_face": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Request Tokens With Face"
           }
         },
         "type": "object",
