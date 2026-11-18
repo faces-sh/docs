@@ -55,7 +55,7 @@ a decision model, would choose between them.
 | `model` | `maestro-1` (the default) or `maestro-1-flash`, which answers sooner and is priced 10 times higher when a question is asked. See [Models](#models). |
 | `instructions` | The question. Optional: without one, the face proposes the question it would ask (see [No question](#no-question)). |
 | `state` | The situation, in prose, at most **3,000 tokens**. For a longer situation, build a [state](/guides/states) and send `state_id`. |
-| `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is read as an addendum to it. |
+| `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is an addendum for this call only (see [A state as the situation](#a-state-as-the-situation)). |
 | `max_choices` | The most options to return, 1 to 32. Default `8`. |
 
 A request needs a situation: `state`, `state_id`, or both.
@@ -137,6 +137,10 @@ curl -X POST https://api.faces.sh/v1/choices \
   "usage": {"input_tokens": 1431, "output_tokens": 295}
 }
 ```
+
+Prose sent in `state` beside a `state_id` is an **addendum for this one call**: the face reads
+it with the state, and it is never saved to the state. Anything that should persist must be
+written to the state yourself, as premises through [`/v1/states`](/guides/states#add-items).
 
 The face reads each premise with its status, so it can tell a verified fact from an
 assumption, or from one that no longer holds. A state must hold at least one premise or
