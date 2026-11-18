@@ -74,7 +74,9 @@ Add `"conversation": "<id>"` to a request with a face on [decisions](/guides/dec
 The face reads the state so far, then your request, and the turn is added to the state. Each
 turn is billed as it would be without a state. See [Decisions in a state](#decisions-in-a-state).
 
-[Choices](/guides/choices) reads a state, with `state_id`, and does not add to it.
+[Choices](/guides/choices) reads a state, with `state_id`, and does not add to it. Prose sent
+beside the `state_id` is read for that one call and never saved: write anything that should
+persist as premises with [Add items](#add-items).
 
 ## Items
 
