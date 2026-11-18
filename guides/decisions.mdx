@@ -5,7 +5,7 @@ description: Ask what a face would decide, in OpenAI's Decisions format or TypeS
 
 # Decisions
 
-Chat gives you what a face would *say*. Decisions give you what it would *decide*: describe
+[Choices](/guides/choices) give you the options a face would weigh. Decisions give you what it would *decide*: describe
 a situation, ask typed questions about it (yes/no, pick one, or a graded scale), and get back
 numbers, as this face.
 
@@ -110,7 +110,7 @@ choices mutually exclusive.
 | `model` | What answered: `face@<decision model>` with the decision model's versioned id (`alice@jev-1.13.0`), the decision model alone, or the face alone. |
 | `answers` | One answer per question, in the order asked. |
 | `causes` | With a face: `[{name, cause}]`, the face's cause for each question, in the order asked. |
-| `cause` | The face's cause for your **first** question (its entry in `causes`); with a face alone, the cause for `input`. The same field as chat's `message.cause`. |
+| `cause` | The face's cause for your **first** question (its entry in `causes`); with a face alone, the cause for `input`. |
 | `usage` | `{input_tokens, output_tokens}`, the cause and the decision model together. |
 
 ### Where it differs from OpenAI's
@@ -142,7 +142,7 @@ response shape: send what you would send to OpenAI, with `model` set to `gpt-6-l
   and `causes` with a face.
 - **Price:** from your credits only, never through a linked ChatGPT plan. Input $0.10 per
   million tokens, cached input $0.01, cache writes $0.125 (kept 30 minutes), output free, plus
-  the markup. [`GET /v1/models?kind=decision`](/guides/chat#supported-models) lists it with
+  the markup. [`GET /v1/models?kind=decision`](/guides/choices#list-the-models) lists it with
   `cached_input_cost_per_million_tokens` and `cache_write_cost_per_million_tokens`.
 - **Not on `/v1/systemone`,** which is Jev's format and models: it refuses `gpt-6-luna` with a
   `400` that points to `/v1/decisions`.
@@ -252,7 +252,7 @@ A face alone returns `{object: "decision", model, answers: [], cause, usage}` on
 The decision models are `jev-latest`, `clef`, `clef-flash` and, on `/v1/decisions` only,
 `gpt-6-luna`. Any other value after `@` is a `400`. Ids are case-insensitive: `CLEF-flash` works, and the
 response spells it `clef-flash`. Their prices are in
-[`GET /v1/models?kind=decision`](/guides/chat#supported-models): per input token, output
+[`GET /v1/models?kind=decision`](/guides/choices#list-the-models): per input token, output
 free, plus the markup in [`GET /v1/rates`](/guides/billing#current-rates).
 
 `confidence` is Jev's on both paths: for a choice `(p_max − 1/n) / (1 − 1/n)`, for a score
@@ -263,12 +263,10 @@ one minus the expected distance from the likeliest level, scaled by a uniform an
 
 Each question gets its own face-specific cause, drawn from the situation and that question
 together, so a different question on the same situation gets a different cause. It is the
-question's entry in `causes`, the same field [chat](/guides/chat#the-faces-cause) returns.
+question's entry in `causes`, the same text [causes](/guides/causes) returns.
 
-A decision can differ from what the same face says in [chat](/guides/chat) on a similar
-prompt: a decision is closed-ended, a choice among the options or levels you give, while chat
-is open-ended and may also apply a [style](/guides/style). See
-[Chat and decisions can differ](/introduction#chat-and-decisions-can-differ).
+To have the face propose the options instead of giving them yourself, ask
+[choices](/guides/choices) first: each option's `name` can be a value in a `choice` question.
 
 ### Images
 
@@ -359,10 +357,8 @@ On `/v1/decisions`, `input` takes `user` messages only: write the history into t
 - **Include the earlier situations, not just the earlier choices.**
 - **Don't replay earlier `cause`s into the situation.**
 
-[Chat](/guides/chat#keep-causes-in-the-transcript) differs: keep each turn's `cause` in the
-transcript.
-
-Both paths accept `conversation`, `premises` and `compaction`: see [States](/guides/states).
+Both paths accept `conversation`, `premises`, `depends_on` and `compaction`: see
+[States](/guides/states#decisions-in-a-state).
 
 ## Cost
 

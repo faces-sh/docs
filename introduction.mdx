@@ -26,35 +26,18 @@ flowchart LR
 Causes are upstream of reasons. A reason is what you tell a police officer when they ask why
 you didn't stop at a red light; a cause is how you determined what to say.
 
-## The Causes API and its wrappers
+## The APIs
 
-Call the [Causes API](/guides/causes) for the cause alone. Or call a wrapper: a drop-in
-replacement for an API you already use, which takes `face@model` and returns that model's
-answer, steered by the face's cause, in a single request.
+| API | Endpoint | Returns |
+| - | - | - |
+| [Choices](/guides/choices) | `/v1/choices` | the options the face would weigh, strongest first, or the question it would ask |
+| [Decisions](/guides/decisions) | `/v1/decisions`, `/v1/systemone` | typed `answers`, with a `cause` per question |
+| [Causes](/guides/causes) | `/v1/causes` | the `cause` alone |
 
-| API | Endpoints | Compatible with | Returns |
-| - | - | - | - |
-| [Causes](/guides/causes) | `/v1/causes` | | the `cause` |
-| [Chat](/guides/chat) | `/v1/chat/completions`, `/v1/responses`, `/v1/messages` | OpenAI, Anthropic | the model's answer, with its `cause` |
-| [Decisions](/guides/decisions) | `/v1/decisions`, `/v1/systemone` | OpenAI, TypeSafe | typed `answers`, with a `cause` per question |
-
-A wrapped call is [billed](/guides/billing) for the cause and for the model, at the provider's
-price plus 5%. Compiling and causes are billed per input token; output is free.
-
-### What a wrapper sends the model
-
-A wrapper sends the answering model more than the cause: the face's name and the identity
-details relevant to the request. On the chat wrappers, a request with
-[`style`](/guides/style#3-use-it) also sends the face's built style for that medium (email,
-text message, essay and so on), so the reply reads the way the face would write it there.
-Style applies only on the chat wrappers.
-
-### Chat and decisions can differ
-
-The same face can make different choices on similar prompts through the two wrappers. Chat is
-open-ended: the model writes its own answer. A decision is closed-ended: the model picks among
-the options or levels you give, and returns typed answers. A style, which only chat uses, can
-also shift a reply.
+[Choices](/guides/choices) is the way to run a face: describe a situation, in prose or as a
+[state](/guides/states) your agent keeps, and ask a question. Choices are
+[billed](/guides/billing) on the tokens each call processes; causes and decisions per input
+token. [Chat is retired](/guides/chat).
 
 ## Compiled, not trained
 
@@ -68,8 +51,9 @@ and [measure how alike](/concepts/centroids) any two faces are.
 
 ## Next steps
 
-* [Quickstart](/quickstart): an API key, a face, and its first cause in a few minutes.
+* [Quickstart](/quickstart): an API key, a face, and its first choices in a few minutes.
 * [Faces](/guides/faces): create and manage faces.
 * [Compile](/guides/compile): turn source texts into a face.
-* [Chat](/guides/chat): answer as a face on any supported model.
+* [Choices](/guides/choices): ask a face what it would do.
+* [States](/guides/states): keep the situation your agent builds.
 * [Decisions](/guides/decisions): typed answers from a face.

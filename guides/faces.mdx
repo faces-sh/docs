@@ -130,7 +130,7 @@ a big upload.
 
 ### `profile_addendum`
 
-A saved system prompt fragment stored on the face. It is added to the system prompt. Unlike `description` (which is human-facing metadata that never reaches the model), `profile_addendum` **is** sent to the model on each chat request.
+A saved system prompt fragment stored on the face. It was sent to the answering model on each chat request. [Chat is retired](/guides/chat), and [choices](/guides/choices), [decisions](/guides/decisions) and [causes](/guides/causes) do not use it; it is still stored and returned to the owner.
 
 Use it for durable behavioral instructions: output format rules, guardrails, tone constraints, tool-use conventions.
 
@@ -147,15 +147,9 @@ curl -X POST https://api.faces.sh/v1/faces \
 ```
 
 - **Maximum 100,000 characters.** Over the limit returns `422`. Formatting (blank lines, indentation) is preserved; ASCII control characters are stripped.
-- Applies on **all** inference endpoints: `/v1/chat/completions`, `/v1/messages`, and `/v1/responses`.
 - Send `"profile_addendum": ""` to clear it. Omit the field on PATCH to leave it unchanged.
 
-<Warning>
-  `profile_addendum` is sent to the answering model like a system prompt, so a determined
-  caller can get the model to reveal it. Don't put anything there you wouldn't want the face's
-  users to see.
-</Warning>
-- Returned on `GET /v1/faces/{alias}` **only for the face's owner**. It is never exposed on cross-user or [published](/guides/system-faces) face listings, nor echoed back in `/v1/responses` output.
+- Returned on `GET /v1/faces/{alias}` **only for the face's owner**. It is never exposed on cross-user or [published](/guides/system-faces) face listings.
 - For [synthetic faces](/guides/synthetic-faces): a persisted composite uses its own `profile_addendum`; a run-time composite borrows the **first operand's**.
 
 ---
@@ -307,7 +301,7 @@ One query per page, not one per row. Full detail in
 
 ### Include published (system) faces
 
-By default the list returns only faces you own. Pass `?include_published=true` to also include faces published system-wide: the [system faces](/guides/system-faces) under the `head` account, and any face another account has chosen to publish. Each published item has `published: true` and an `owned_by` you combine into the chat handle `owned_by:alias` (e.g. `head:socrates`).
+By default the list returns only faces you own. Pass `?include_published=true` to also include faces published system-wide: the [system faces](/guides/system-faces) under the `head` account, and any face another account has chosen to publish. Each published item has `published: true` and an `owned_by` you combine into the handle `owned_by:alias` (e.g. `head:socrates`).
 
 To see faces made available to **you specifically** rather than to everybody, pass `?include_shared=true`. The two are independent and neither implies the other; see [Sharing Faces](/guides/sharing).
 
@@ -387,7 +381,7 @@ curl "https://api.faces.sh/v1/faces?include_published=true&sort=usage&include=us
 
 | field | window | meaning |
 |-------|--------|---------|
-| `users_30d` | trailing 30 days | distinct accounts that chatted with this face |
+| `users_30d` | trailing 30 days | distinct accounts that used this face |
 | `tokens_30d` | trailing 30 days | input + output tokens |
 | `tokens_total` | **all time** | input + output tokens, ever |
 
@@ -438,7 +432,7 @@ curl "https://api.faces.sh/v1/faces/socrates/avatar?size=sm&owner=head" \
   -H "Authorization: Bearer YOUR_API_KEY" --output socrates.png
 ```
 
-`<owner>:<alias>` is the same handle you chat with, print on a card and put on
+`<owner>:<alias>` is the same handle you ask the face with, print on a card and put on
 a roster. It works on all four read routes:
 
 | | |
@@ -511,7 +505,7 @@ curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
 
 ### `default_model`
 
-The face's preferred LLM, stored for clients to read. Chat does not apply it: a bare alias returns the face's [cause alone](/guides/chat#the-faces-cause), so send `alias@<default_model>` to answer on it. Accepts any model name from the [supported models list](/guides/chat#supported-models).
+The face's preferred LLM, stored for clients to read. No route applies it. Accepts any model name from the [models list](/guides/choices#list-the-models).
 
 PATCH also accepts `name`, `specialty`, `description`, `profile_addendum`, `formula`, `basic_facts` and `default_tools`. For the text fields (`specialty`, `description`, `profile_addendum`) an empty string clears the field and omitting it leaves it unchanged.
 
@@ -521,7 +515,7 @@ Fields with their own route are refused with a `422` naming it: `published` (`/p
 
 ## Lock a face
 
-Locking a face freezes it. While locked, the face and everything it owns can still be **read and chatted with**, but **nothing can be changed**; every write is refused. Use it to protect a face you don't want edited.
+Locking a face freezes it. While locked, the face and everything it owns can still be **read and asked**, but **nothing can be changed**; every write is refused. Use it to protect a face you don't want edited.
 
 Toggle the lock with a single call (owner only):
 
@@ -552,7 +546,7 @@ When a face is locked, any write to it or to anything it owns is refused with `4
 | Blocked while locked | Still allowed |
 |----------------------|---------------|
 | Editing the face (name, description, basic facts, model, and the rest) | Reading the face, its documents, and its threads |
-| Adding, editing, compiling, or deleting its documents and threads | Chatting with the face (inference) |
+| Adding, editing, compiling, or deleting its documents and threads | Asking the face (choices, decisions, causes) |
 | Uploading or importing new source material | Unlocking it |
 | Deleting the face itself | |
 

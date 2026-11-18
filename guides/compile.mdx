@@ -122,7 +122,7 @@ with `type=document`, and `POST /v1/faces/{alias}/import` with `type=document` a
 An edit can change a document's medium but not clear it: `PATCH` with `"medium": null` on a
 document that has one is a `422`.
 
-**Eleven values, spelled exactly.** The same set the chat API uses:
+**Eleven values, spelled exactly:**
 
 ```
 email            text message     social post      essay
@@ -702,7 +702,7 @@ edit counts again):
 Both rates are published: `compile.usd_per_million_source_tokens` and
 `compile.rush_usd_per_million_source_tokens` in [`GET /v1/rates`](/guides/billing#current-rates),
 and `input_cost_per_million_tokens` and `rush_input_cost_per_million_tokens` on
-`faces-compile-latest` in [`GET /v1/models?kind=compile`](/guides/chat#supported-models).
+`faces-compile-latest` in [`GET /v1/models?kind=compile`](/guides/choices#list-the-models).
 
 See [Allowances](/guides/billing#allowances).
 
@@ -716,6 +716,6 @@ For batch imports, consider using the [import endpoint](/guides/faces#import) or
 
 ---
 
-## Compile vs. chat tokens
+## Compile vs. choices tokens
 
-The compile allowance counts the source tokens each compile reads. Chat token usage is separate and billed against your credit balance based on the LLM model used for each conversation.
+The compile allowance counts the source tokens each compile reads. [Choices](/guides/choices), decisions and causes count against a separate allowance; see [Allowances](/guides/billing#allowances).

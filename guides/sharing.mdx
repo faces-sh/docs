@@ -5,10 +5,10 @@ description: Keep a face private, share it with named accounts, or publish it to
 
 # Sharing Faces
 
-A face you create is private: only you can chat with it. There are two ways to let other
+A face you create is private: only you can use it. There are two ways to let other
 people use it.
 
-| state | who can chat with it |
+| state | who can use it |
 | --- | --- |
 | private (default) | you |
 | **shared** | the accounts you name, and nobody else |
@@ -36,7 +36,7 @@ curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
 { "alias": "alice", "shared_with": ["dana", "sam"], "handle": "you:alice" }
 ```
 
-`dana` and `sam` can now chat with the face using the handle in the response.
+`dana` and `sam` can now use the face with the handle in the response.
 
 <Warning>
   **Send the complete list every time.** This replaces the whole set, it does not add to
@@ -65,7 +65,7 @@ curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
 
 ## What sharing does and does not give away
 
-A shared face can be **chatted with**, and its card can be read: its name, description,
+A shared face can be **asked** ([choices](/guides/choices), [decisions](/guides/decisions), [causes](/guides/causes)), and its card can be read: its name, description,
 `basic_facts` and avatar, the same fields a [published face](/guides/faces#faces-you-do-not-own)
 shows. The people you share with can also put it in a [group](/guides/groups) of their own.
 
@@ -74,7 +74,7 @@ into it or change it, cannot share it onward, and never see its
 [profile addendum](/guides/faces), which stays proprietary to you exactly as it does for
 published faces.
 
-**Billing is unchanged.** You pay to compile your face. Whoever chats with it pays for
+**Billing is unchanged.** You pay to compile your face. Whoever asks it pays for
 their own inference on their own account.
 
 ---
@@ -92,7 +92,7 @@ curl -X PATCH "https://api.faces.sh/v1/faces/alice/publish" \
 { "alias": "alice", "published": true, "handle": "you:alice" }
 ```
 
-Any account can then chat with `you:alice`, and it appears in the published listing for
+Any account can then use `you:alice`, and it appears in the published listing for
 everyone. Unpublishing revokes that immediately, and returns `"handle": null`.
 
 **Any face owner can publish.**
@@ -139,19 +139,18 @@ Published faces do not carry `via`; they carry `published: true` instead.
 
 ---
 
-## Chatting with a face someone shared
+## Asking a face someone shared
 
-Use the `owner:alias` handle, exactly as for a published face, and name a model after
-`@`. The bare handle returns the face's [cause alone](/guides/chat#the-faces-cause),
-not an answer:
+Use the `owner:alias` handle as the `view`, exactly as for a published face:
 
 ```bash
-curl -X POST "https://api.faces.sh/v1/chat/completions" \
+curl -X POST "https://api.faces.sh/v1/choices" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "dana:alice@gpt-5.6-terra",
-    "messages": [{"role": "user", "content": "What do you make of this?"}]
+    "view": "@dana:alice",
+    "state": "A client wants the launch moved up a month.",
+    "instructions": "What do you make of this?"
   }'
 ```
 

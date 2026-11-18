@@ -5,7 +5,7 @@ description: Credits, subscription plans, allowances, and Stripe payments.
 
 # Billing
 
-Faces uses a credit-based billing system. Chat completions are billed against your credit balance in real time. Each plan's allowances are shared across all your faces.
+Faces uses a credit-based billing system. Choices, decisions, causes and compiles are billed against your plan's allowance, then your credit balance, in real time. Each plan's allowances are shared across all your faces.
 
 ---
 
@@ -30,21 +30,23 @@ curl https://api.faces.sh/v1/billing/balance \
 
 ## Subscription plans
 
-| Plan | Price | Compile allowance | Cause allowance | OAuth routing |
-|------|-------|-------------------|-----------------|---------------|
+| Plan | Price | Compile allowance | Choices and cause allowance | ChatGPT link |
+|------|-------|-------------------|-----------------------------|--------------|
 | Free | $0 | none: pay as you go | none: pay as you go |  |
-| Connect | $17/mo | 250k source tokens/month | 10M tokens/month | ChatGPT (codex models via `/v1/responses`) |
-| Pro | $49/mo | 1M source tokens/month | 25M tokens/month | ChatGPT (codex models via `/v1/responses`) |
+| Connect | $17/mo | 500k source tokens/month | 25M tokens/month | interviews and style builds |
+| Pro | $49/mo | 1.5M source tokens/month | 75M tokens/month | interviews and style builds |
 
-A subscription is an **allowance**, not a fee per request: compiling and a face's
-[`cause`](/guides/chat#the-faces-cause) are covered up to the plan's limits (see
-[Allowances](#allowances)). The answering model (`@model`) is paid as it goes on every plan,
-at the model's listed price plus 5%, unless it runs free on your ChatGPT subscription.
+A subscription is an **allowance**, not a fee per request: compiling, [choices](/guides/choices),
+[decisions](/guides/decisions) and a face's [cause](/guides/causes) are covered up to the plan's
+limits (see [Allowances](#allowances)). A decision model is paid as it goes on every plan, at the
+model's listed price plus 5%.
 
 On the **Free** plan everything is paid as it goes, from your credit balance, at the
 [pay-as-you-go rates](#pay-as-you-go-rates).
 
-On **Connect** and **Pro**, you link your ChatGPT account via OAuth (device-code flow). Codex-eligible models (`codex_eligible: true` in [`/v1/models`](/guides/chat#supported-models)) run free through your ChatGPT subscription **at `POST /v1/responses`**. Other models, or codex models called at `/v1/chat/completions`, are paid from your credits at the model's listed price plus 5%. If your ChatGPT connection is unavailable (e.g., you hit OpenAI's limits), `/v1/responses` requests fall back to credits only when `api_fallback` is enabled, otherwise they return an error rather than charging you. See [Connect ChatGPT](/guides/oauth) for details.
+On **Connect** and **Pro**, you can link your ChatGPT account via OAuth (device-code flow), and
+[interviews](/guides/compile#interview-threads) and [style builds](/guides/style) run on your
+ChatGPT plan instead of credits. See [Connect ChatGPT](/guides/oauth).
 
 ### Get current subscription
 
@@ -55,7 +57,7 @@ curl https://api.faces.sh/v1/billing/subscription \
 
 ```json
 {
-  "plan": "connect",
+  "plan": "pro",
   "status": "active",
   "face_count": 4,
   "face_limit": null,
@@ -63,16 +65,16 @@ curl https://api.faces.sh/v1/billing/subscription \
   "is_active": true,
   "cancel_at_period_end": false,
   "allowances": {
-    "cause_5h":      {"limit": 640000,   "used": 12400,   "remaining": 627600,  "resets_at": null},
-    "cause_week":    {"limit": 2500000,  "used": 210000,  "remaining": 2290000, "resets_at": "2026-10-22T13:13:23"},
-    "cause_month":   {"limit": 10000000, "used": 640000,  "remaining": 9360000, "resets_at": "2026-11-05T13:13:23"},
-    "compile_month": {"limit": 250000,  "used": 83600,   "remaining": 166400,  "resets_at": "2026-11-05T13:13:23"}
+    "cause_5h":      {"limit": 4800000,  "used": 64227,   "remaining": 4735773,  "resets_at": null},
+    "cause_week":    {"limit": 18750000, "used": 940551,  "remaining": 17809449, "resets_at": "2026-11-21T10:53:13"},
+    "cause_month":   {"limit": 75000000, "used": 7191060, "remaining": 67808940, "resets_at": "2026-11-23T10:53:13"},
+    "compile_month": {"limit": 1500000,  "used": 771403,  "remaining": 728597,   "resets_at": "2026-11-23T10:53:13"}
   },
   "rates": {
     "cause_usd_per_million_input_tokens": 0.75,
     "cause_added_tokens": 1500,
-    "compile_usd_per_million_source_tokens": 25.0,
-    "compile_rush_usd_per_million_source_tokens": 30.0,
+    "compile_usd_per_million_source_tokens": 16.0,
+    "compile_rush_usd_per_million_source_tokens": 21.0,
     "model_markup": 0.05
   }
 }
@@ -86,18 +88,24 @@ curl https://api.faces.sh/v1/billing/subscription \
 
 | | Connect | Pro |
 |---|---|---|
-| Compile, per month | 250k source tokens | 1M source tokens |
-| Cause, per month | 10M tokens | 25M tokens |
-| Cause, per week | 2.5M | 6.25M |
-| Cause, per 5 hours (rolling) | 640k | 1.6M |
+| Compile, per month | 500k source tokens | 1.5M source tokens |
+| Choices and causes, per month | 25M tokens | 75M tokens |
+| Choices and causes, per week | 6.25M | 18.75M |
+| Choices and causes, per 5 hours (rolling) | 1.6M | 4.8M |
+
+The choices and causes allowance is `cause_5h`, `cause_week` and `cause_month` in
+[`GET /v1/billing/subscription`](#get-current-subscription).
 
 **What counts:**
 
 - **Compile:** the source's tokens, **each time** it is compiled. A recompile, or a
   decompile followed by a compile, counts again.
-- **Cause:** the tokens a face's `cause` [read](/guides/chat#limits-on-a-face), **plus 1,500** per cause.
-- **The answering model** (`@model`, or a decision model) is not part of the allowance:
-  it is paid at the model's listed price plus 5%, or runs free on your ChatGPT subscription.
+- **Choices:** the call's `usage.input_tokens`, the input tokens it processed. On
+  `maestro-1-flash` with a question, they count 10 times. See [Choices](/guides/choices#cost).
+- **Causes:** the tokens a face's `cause` read, **plus 1,500** per cause, on
+  [causes](/guides/causes) and [decisions](/guides/decisions).
+- **A decision model** is not part of the allowance: it is paid at the model's listed price
+  plus 5%.
 
 **Resets:** the month is your subscription's 30-day window; weeks are 7-day blocks of it;
 the 5-hour window rolls.
@@ -128,8 +136,8 @@ curl https://api.faces.sh/v1/rates
     "added_tokens_per_cause": 1500
   },
   "compile": {
-    "usd_per_million_source_tokens": 25.0,
-    "rush_usd_per_million_source_tokens": 30.0
+    "usd_per_million_source_tokens": 16.0,
+    "rush_usd_per_million_source_tokens": 21.0
   },
   "models": {
     "markup": 0.05,
@@ -143,19 +151,19 @@ curl https://api.faces.sh/v1/rates
     "connect": {
       "usd_per_month": 17,
       "allowances": {
-        "cause_tokens_per_5_hours": 640000,
-        "cause_tokens_per_week": 2500000,
-        "cause_tokens_per_month": 10000000,
-        "compile_source_tokens_per_month": 250000
+        "cause_tokens_per_5_hours": 1600000,
+        "cause_tokens_per_week": 6250000,
+        "cause_tokens_per_month": 25000000,
+        "compile_source_tokens_per_month": 500000
       }
     },
     "pro": {
       "usd_per_month": 49,
       "allowances": {
-        "cause_tokens_per_5_hours": 1600000,
-        "cause_tokens_per_week": 6250000,
-        "cause_tokens_per_month": 25000000,
-        "compile_source_tokens_per_month": 1000000
+        "cause_tokens_per_5_hours": 4800000,
+        "cause_tokens_per_week": 18750000,
+        "cause_tokens_per_month": 75000000,
+        "compile_source_tokens_per_month": 1500000
       }
     }
   },
@@ -198,10 +206,10 @@ curl https://api.faces.sh/v1/rates
 }
 ```
 
-Per-model token prices are in [`GET /v1/models`](/guides/chat#supported-models); `models.markup` is what is
-added to them. `limits.chat.face_block_tokens` is the most a face adds to a chat request, and
-`limits.chat.max_request_tokens` the request limit for a model with no listed limit (see
-[Limits on a face](/guides/chat#limits-on-a-face)). `limits.causes` is the size limit on
+Per-model token prices, the choices models' included, are in
+[`GET /v1/models`](/guides/choices#list-the-models); `models.markup` is what is added to a
+decision model's price. `limits.chat` applies to the [retired](/guides/chat) chat endpoints.
+`limits.causes` is the size limit on
 [`/v1/causes`](/guides/causes) with `messages`. `limits.requests_per_minute` is the
 per-account [rate limit](/errors#rate-limits) by plan. Your own usage against the allowances is in `GET /v1/billing/subscription`.
 
@@ -211,10 +219,12 @@ On the Free plan, and past a subscription's limits with `api_fallback` on:
 
 | | rate |
 |---|---|
-| A face's `cause` ([chat](/guides/chat#the-faces-cause), [decisions](/guides/decisions), [causes](/guides/causes)) | **$0.75 per million tokens**: the tokens it [read](/guides/chat#limits-on-a-face) **plus 1,500** |
-| Compile | **$25 per million source tokens** |
-| A [rush](/guides/compile#when-a-compile-starts) compile | the rush rate: `compile.rush_usd_per_million_source_tokens` in [`GET /v1/rates`](#current-rates) |
-| Any model you name (`@model`, a decision model) | the model's listed price **+ 5%** |
+| [Choices](/guides/choices), `maestro-1` | **$0.42 per million input tokens** and **$1.00 per million output tokens**, as `usage` reports them |
+| [Choices](/guides/choices), `maestro-1-flash` with a question | **$4.20 per million input tokens** and **$10.00 per million output tokens**; without a question, as `maestro-1` |
+| A face's `cause` ([decisions](/guides/decisions), [causes](/guides/causes)) | **$0.75 per million tokens**: the tokens it read **plus 1,500** |
+| Compile | **$16 per million source tokens** |
+| A [rush](/guides/compile#when-a-compile-starts) compile | **$21 per million source tokens** |
+| A decision model | the model's listed price **+ 5%** |
 
 ### Subscribe
 
@@ -390,7 +400,7 @@ Returns a breakdown of token usage and costs. Supports query parameters:
 - `api_key_id`, `model_username`, `model_iam_id`: filter to one value
 - `llm_model`: filter to one model id, as `group_by=llm_model` reports it
 
-Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`](/guides/chat#supported-models) lists. A face's cause appears as `faces-causes-latest`, and compiling as `faces-compile-latest`, a rush's extra charge included. Any id from the grouped response filters to that id's usage.
+Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`](/guides/choices#list-the-models) lists. A face's cause and a choices call appear as `faces-causes-latest`, and compiling as `faces-compile-latest`, a rush's extra charge included. Any id from the grouped response filters to that id's usage.
 
 Each row, and `totals`, adds up: `provider_cost_usd + markup_usd = total_cost_usd`, the
 amount deducted.
@@ -407,22 +417,19 @@ curl https://api.faces.sh/v1/billing/invoices \
 
 Returns a list of top-up transactions with amounts and Stripe receipt URLs.
 
-## How chat costs are calculated
+## How a choices call is billed
 
-A chat with a face has two parts: the face's cause, covered by your allowance or paid
-at $0.75 per million tokens, the tokens it [read](/guides/chat#limits-on-a-face) plus 1,500 (see [Allowances](#allowances)),
-and the answering
-model, which deducts from your credit balance:
+A [choices](/guides/choices) call is billed on its `usage`: on Connect and Pro, its input
+tokens count against the allowance; on Free, or past the allowance with `api_fallback` on, it
+is paid from credits:
 
 ```
-cost = ( (prompt_tokens / 1,000,000) × input_price
-       + (completion_tokens / 1,000,000) × output_price )
-     × (1 + markup_rate)
+cost = (input_tokens / 1,000,000) × input_price
+     + (output_tokens / 1,000,000) × output_price
 ```
 
-The exact rate is `rates.model_markup` in
-[`GET /v1/billing/subscription`](#get-current-subscription) (`0.05` today); the prices are in
-[`GET /v1/models`](/guides/chat#supported-models).
+The prices are the model's in [`GET /v1/models?kind=choices`](/guides/choices#models), with no
+markup.
 
 ---
 
@@ -431,7 +438,7 @@ The exact rate is `rates.model_markup` in
 | State | Effect |
 |-------|--------|
 | `balance > 0` | Normal operation |
-| `balance = 0` | Chat requests return `402 Payment Required` |
+| `balance = 0` | Requests that must be paid from credits return `402 Payment Required` |
 | `frozen = true` | All requests return `402` regardless of balance |
 
 ---

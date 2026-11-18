@@ -47,7 +47,7 @@
               "guides/system-faces",
               "guides/sharing",
               "guides/groups",
-              "guides/chat",
+              "guides/choices",
               "guides/decisions",
               "guides/causes",
               "guides/states",
@@ -55,9 +55,10 @@
               "guides/synthetic-faces",
               "guides/style",
               "guides/benchmark",
-              "guides/fidelity",
               "guides/billing",
-              "guides/oauth"
+              "guides/oauth",
+              "guides/chat",
+              "guides/fidelity"
             ]
           },
           {

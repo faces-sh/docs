@@ -1,6 +1,6 @@
 ---
 title: Quickstart
-description: "Set up Faces with your agent, or by hand: create a face, compile a document, and chat."
+description: "Set up Faces with your agent, or by hand: create a face, compile a document, and ask it what it would do."
 ---
 
 # Quickstart
@@ -21,7 +21,7 @@ Set up Faces for me:
 ## By hand
 
 The rest of this page walks through the API directly: register an account, create a face,
-upload a source document, compile it, and run a chat completion.
+upload a source document, compile it, and ask the face what it would do.
 
 ## Prerequisites
 
@@ -69,7 +69,7 @@ curl -X POST https://api.faces.sh/auth/register-email \
 Use `data.token` as a Bearer token for subsequent requests, or create an API key (step 2).
 
 <Warning>
-  A new account starts with a **$0 balance**, so compiling and chatting answer `402` until it has credit. Open `activation_checkout_url` to add your first $5 (you can choose more on the payment page). See [Billing](/guides/billing).
+  A new account starts with a **$0 balance**, so compiling and asking a face answer `402` until it has credit. Open `activation_checkout_url` to add your first $5 (you can choose more on the payment page). See [Billing](/guides/billing).
 </Warning>
 
 ---
@@ -190,42 +190,42 @@ compile is still in hand, so keep polling and offer no action. See [Compile](/gu
 
 ---
 
-## 6. Chat
+## 6. Ask the face
 
-Use the OpenAI-compatible endpoint. Pass the face alias and the LLM to answer on in the `model` field, as `alias@model`:
+Describe a situation and ask a question. `view` is the face, as `@alias`:
 
 ```bash
-curl -X POST https://api.faces.sh/v1/chat/completions \
+curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "alice@gpt-5-mini",
-    "messages": [
-      {"role": "user", "content": "What do you think about Berlin?"}
-    ]
+    "view": "@alice",
+    "state": "A startup in Berlin offers me a design lead role at a lower salary than I earn now.",
+    "instructions": "Should I take the offer?"
   }'
 ```
 
 ```json
 {
-  "id": "chatcmpl-faces-...",
-  "object": "chat.completion",
-  "choices": [{
-    "message": {
-      "role": "assistant",
-      "content": "Berlin has this incredible energy: it rewards people who are comfortable with ambiguity...",
-      "cause": "They want my take on the city. I moved here because nobody asks who I am going to be..."
-    },
-    "finish_reason": "stop"
-  }],
-  "usage": { "prompt_tokens": 312, "completion_tokens": 87, "total_tokens": 399 }
+  "object": "choices",
+  "view": "@alice",
+  "model": "maestro-1",
+  "version": "23",
+  "choices": [
+    {"name": "Take the offer", "description": "Berlin's freedom, meaningful work, and long-term impact outweigh salary. If the startup aligns with your values, it's worth the trade-off."},
+    {"name": "Reject the offer", "description": "If the deadline feels rushed, it may signal poor collaboration. Trust your instincts about their process."},
+    {"name": "Negotiate", "description": "If the title matters less, focus on salary, equity, or growth opportunities to bridge the gap."}
+  ],
+  "usage": {"input_tokens": 1243, "output_tokens": 250}
 }
 ```
 
-`cause` is the face's cause: the principal *why* behind the reply. Sending the bare alias (`"model": "alice"`) returns the cause alone, with `content` set to `null`, and charges only for it; see [The face's cause](/guides/chat#the-faces-cause).
+The face proposes the options it would weigh, strongest first. Leave `instructions` out and it
+proposes the question it would ask instead. See [Choices](/guides/choices).
 
 <Tip>
-  Any model from [`GET /v1/models`](/guides/chat#supported-models) can follow the `@`. See [Chat guide](/guides/chat).
+  For a situation longer than 3,000 tokens, or one your agent keeps building, put it in a
+  [state](/guides/states) and send its id as `state_id`.
 </Tip>
 
 ---
@@ -233,6 +233,7 @@ curl -X POST https://api.faces.sh/v1/chat/completions \
 ## Next steps
 
 - [Add more faces and manage your library](/guides/faces)
+- [Ask a face what it would do](/guides/choices)
 - [Understand compilation](/guides/compile)
 - [Build synthetic faces from boolean expressions](/guides/synthetic-faces)
 - [Manage billing and subscription plans](/guides/billing)
