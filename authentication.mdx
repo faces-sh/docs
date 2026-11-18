@@ -108,7 +108,7 @@ curl -X POST https://api.faces.sh/v1/auth/api-keys \
 | `budget_usd` | float (optional) | Hard spend cap in USD, from `0` to `999999`. Requests fail with `402` once exhausted. Null = unlimited. |
 | `expires_in_days` | int (optional) | Number of days until the key expires, from `0` to `36500`. `0` or null = never expires. |
 | `scopes` | array (optional) | Permission scopes. Default: `["v1:*"]` (full access). |
-| `allowed_face_ids` | array (optional) | Limit the key to these face aliases: it can chat with them and read them, and nothing else. See [Face and model restrictions](#face-and-model-restrictions). Null = no limit. |
+| `allowed_face_ids` | array (optional) | Limit the key to these face aliases: it can ask them and read them, and nothing else. See [Face and model restrictions](#face-and-model-restrictions). Null = no limit. |
 | `allowed_llm_models` | array (optional) | Restrict the key to specific LLM models. Null = all models. |
 
 A value outside any of those ranges, or a field not in the table, is refused with a
@@ -166,7 +166,7 @@ curl -X DELETE https://api.faces.sh/v1/auth/api-keys/KEY_ID \
 
 ## Budget caps
 
-When a budget cap is set on an API key, every chat request checks the remaining budget before proceeding. Once the key has spent its cap, the API returns:
+When a budget cap is set on an API key, every paid request checks the remaining budget before proceeding. Once the key has spent its cap, the API returns:
 
 ```json
 HTTP 402 Payment Required
@@ -203,7 +203,7 @@ Null or omitted fields allow all faces/models, appropriate for unrestricted keys
 
 A key with `allowed_face_ids` can do two things, both only for the faces it lists:
 
-- chat with them: chat completions, responses, messages, states, causes and decisions;
+- ask them: choices, states, causes and decisions;
 - read them: `GET /v1/faces/{alias}` and its avatars.
 
 Each request must name one of its faces. One that names no face answers `403`:

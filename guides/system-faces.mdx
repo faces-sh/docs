@@ -1,13 +1,13 @@
 ---
 title: System Faces
-description: Ready-to-use faces provided by Faces that any account can chat with.
+description: Ready-to-use faces provided by Faces that any account can use.
 ---
 
 # System Faces
 
-System faces are a curated set of compiled faces that **Faces provides for everyone**: you can chat with them straight away without creating or compiling a face of your own. They live under the platform `head` account and are addressed with the `head:` prefix, e.g. `head:socrates`.
+System faces are a curated set of compiled faces that **Faces provides for everyone**: you can use them straight away without creating or compiling a face of your own. They live under the platform `head` account and are addressed with the `head:` prefix, e.g. `head:socrates`.
 
-You pay for inference exactly as you would for your own faces (the calling account's credits are charged). There is no charge to *use* a system face beyond the normal per-token inference cost.
+You pay for a call exactly as you would for your own faces, from your allowance or credits. There is no charge to *use* a system face beyond that.
 
 <Note>
   **System faces may change over time without notice.** Faces curates this set; faces can be added, updated, recompiled, or removed at any time. Don't hardcode the list; fetch it from the API (see [Discover system faces](#discover-system-faces)).
@@ -30,7 +30,7 @@ curl "https://api.faces.sh/v1/faces?include_published=true&from_users=head" \
   -H "Authorization: Bearer YOUR_API_KEY"
 ```
 
-`from_users` filters every row by owner, so this returns head's faces only; your own are left out. Drop it to get the whole published listing alongside your own faces. Each system face has `published: true` and an `owned_by` of `head`; combine them as the chat handle `head:<alias>`:
+`from_users` filters every row by owner, so this returns head's faces only; your own are left out. Drop it to get the whole published listing alongside your own faces. Each system face has `published: true` and an `owned_by` of `head`; combine them as the handle `head:<alias>`:
 
 ```json
 {
@@ -51,27 +51,23 @@ See [List faces](/guides/faces#list-faces) for the full `include_published` / `f
 
 ---
 
-## Chat with a system face
+## Ask a system face
 
-Address a system face by its handle `head:<alias>` in the `model` field, and append a model with `@`:
+Address a system face by its handle as the `view`:
 
 ```bash
-curl -X POST https://api.faces.sh/v1/chat/completions \
+curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "head:socrates@gpt-5.6-terra",
-    "messages": [
-      {"role": "user", "content": "Find the flaw in this argument: ..."}
-    ]
+    "view": "@head:socrates",
+    "state": "I run a small bakery and a national chain just opened a store across the street.",
+    "instructions": "What should I do this month?"
   }'
 ```
 
-The handle works identically on all three chat endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`) and behaves just like one of your own faces: the face shapes the model's answer, and your account is billed for the inference. See [Model addressing](/guides/chat#model-override-syntax) for the full grammar.
-
-<Warning>
-  Always include `@<model>` when chatting a system face, e.g. `head:socrates@gpt-5.6-terra`. The bare handle `head:socrates` returns the face's [cause alone](/guides/chat#the-faces-cause), not an answer. Pick any model from [`/v1/models`](/guides/chat#supported-models).
-</Warning>
+The handle works the same on [choices](/guides/choices), [decisions](/guides/decisions) and
+[causes](/guides/causes), and behaves just like one of your own faces.
 
 ---
 
@@ -79,7 +75,7 @@ The handle works identically on all three chat endpoints (`/v1/chat/completions`
 
 | What | Who pays |
 | --- | --- |
-| Inference (chatting a system face) | **The calling account**: your credits, per token, same rates as any other model. |
+| Asking a system face (choices, decisions, causes) | **The calling account**: your allowance, then credits, at the same rates as your own faces. |
 | Compiling / maintaining the system face | Faces. You never pay to keep a system face compiled. |
 
-OAuth routing and the [Connect plan](/guides/oauth) work the same way for system faces as for your own; they key off *your* account, not the system face.
+Your plan's allowance works the same way for system faces as for your own; it keys off *your* account, not the system face.

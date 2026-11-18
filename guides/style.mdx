@@ -18,8 +18,10 @@ the face writes better in that medium. A face holds a separate style for each me
   and Pro, and off on Free. See [Automatic builds](#automatic-builds).
 </Note>
 
-A style applies only on the chat wrappers (`/v1/chat/completions`, `/v1/responses`,
-`/v1/messages`). [Causes](/guides/causes) and [decisions](/guides/decisions) do not use it.
+A style was applied on the chat wrappers, and [chat is retired](/guides/chat). No route
+applies a style now: [choices](/guides/choices), [causes](/guides/causes) and
+[decisions](/guides/decisions) do not use it. Builds still run, and the styles they install
+stay on the face.
 
 ---
 
@@ -280,44 +282,8 @@ built stay installed, and you [remove them](#5-remove-it) as you would any other
 
 ## 3. Use it
 
-Building a style does not apply it. On a chat wrapper (`/v1/chat/completions`,
-`/v1/responses`, `/v1/messages`), send **`style`** with the medium whose style you want:
-
-```json
-{
-  "model": "alice@MODEL",
-  "style": "email",
-  "messages": [{"role": "user", "content": "Reply to the note below."}]
-}
-```
-
-On an account with ChatGPT [linked](/guides/oauth), send a Codex-eligible model to
-`/v1/responses`: at `/v1/chat/completions` it is a `409` before `style` is read.
-
-Leave `style` out and no built style is applied. `style` also sets the request's
-[`medium`](#asking-for-a-medium), so you do not need both; sending both with different values
-is a `400`.
-
-**A style adds input tokens.** It adds roughly 2,000 to 3,500 input tokens to every request
-that sends it, billed as model input, or free on the [ChatGPT route](/guides/oauth). The exact
-figure for each request is in its `usage`. It is not part of the
-[request limit on a face](/guides/chat#limits-on-a-face): on a request near the model's limit,
-leave about 4,000 tokens for it. It applies
-only on the chat wrappers: [causes](/guides/causes) and [decisions](/guides/decisions) do not
-take it.
-
-Each of these is a `400`:
-
-- `style` is not a medium. The message lists the media.
-- `model` names no face. `style` needs `"model": "face@model"`.
-- `model` is a combination of faces. A style applies to one face.
-- `medium` names a different medium than `style`.
-- The face has no style for that medium, or no styles at all:
-
-```
-This face has no email style. Its styles: essay.
-'alice' has no styles yet.
-```
+A style was applied by sending `style` on a chat wrapper. [Chat is retired](/guides/chat), so
+no route applies a style now.
 
 ---
 
@@ -424,23 +390,6 @@ Every face carries `styles`, the media it has a built style for:
 An empty list means no style has been built. Read it before sending `style`, to offer only the
 media a face has.
 
-## Asking for a medium
-
-Without `style`, you can still send `medium` to say which kind of writing the reply is. It
-needs no build, and is never refused:
-
-```json
-{
-  "model": "alice@MODEL",
-  "medium": "lecture",
-  "messages": [{"role": "user", "content": "Explain the coastline paradox."}]
-}
-```
-
-Omit both and the face works the medium out from your latest turn.
-
----
-
 ## What a build costs
 
 On Connect or Pro with a [linked ChatGPT account](/guides/oauth), a build runs on that
@@ -448,7 +397,7 @@ account and is **not billed**. That holds for the default model and for any
 [Codex-eligible](/guides/oauth) model you name.
 
 **Every other build runs on `gpt-6-luna`, whatever `model` names, and is charged to
-credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/chat#supported-models) plus
+credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/choices#list-the-models) plus
 the published markup. This applies on every plan, to automatic builds as well as manual ones:
 
 | plan | linked ChatGPT account | no link |
@@ -497,7 +446,7 @@ account or nothing, never charge":
   build again.
 - **On Free:** `422 oauth_only_unavailable`, and nothing is charged.
 
-Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/chat#supported-models).
+Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/choices#list-the-models).
 
 ---
 

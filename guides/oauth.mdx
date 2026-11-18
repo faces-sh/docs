@@ -1,23 +1,21 @@
 ---
 title: Connect ChatGPT
-description: On subscription plans, connect your OpenAI account with OAuth to use Faces wrapped APIs directly with eligible Codex models without spending API credits or the 5% markup.
+description: On Connect and Pro, link your ChatGPT account so interviews and style builds run on your ChatGPT plan instead of credits.
 ---
 
 # Connect ChatGPT
 
-On the **Connect** and **Pro** plans, you can link a ChatGPT account. When you call a
-[wrapper](/introduction#the-causes-api-and-its-wrappers) with a Codex-eligible model, we
-route the model's part of the request through your ChatGPT plan. That part then costs you no
-API credits and carries no 5% markup.
+On the **Connect** and **Pro** plans, you can link a ChatGPT account. [Interviews](#interviews),
+[style builds](/guides/style) and the face's side of a [benchmark](/guides/benchmark#price)
+then run on your ChatGPT plan where the model allows it, so that work costs you no API credits.
 
-**The cause is billed as usual:** from your plan's [allowance](/guides/billing#allowances),
-then from credits. Linking ChatGPT changes who pays for the model, not for the face.
+[Choices](/guides/choices), [decisions](/guides/decisions) and [causes](/guides/causes) are
+not affected: they are billed from your plan's [allowance](/guides/billing#allowances), then
+from credits, whether or not ChatGPT is linked.
 
 <Note>
-  This applies at **`POST /v1/responses`** only. A model is Codex-eligible when
-  `codex_eligible` is `true` in [`GET /v1/models`](/guides/chat#supported-models). Read
-  the field rather than keeping a list. See
-  [Where it applies](#where-it-applies).
+  Linking ChatGPT once routed chat models through your ChatGPT plan. [Chat is
+  retired](/guides/chat), and so is that route.
 </Note>
 
 ---
@@ -146,50 +144,6 @@ Returns `204 No Content`, whether or not an account was linked.
 
 ---
 
-## Where it applies
-
-Only Codex-eligible models at `POST /v1/responses` run on your ChatGPT plan. Send them
-there whether or not the user has linked ChatGPT.
-
-| Caller | `POST /v1/responses` | `POST /v1/chat/completions` |
-|--------|----------------------|------------------------------|
-| ChatGPT linked | the model runs on the ChatGPT plan | `409`: use `/v1/responses` |
-| Not linked | the model is paid from credits, plus 5% | the model is paid from credits, plus 5% |
-
-Every other model, on any endpoint, is paid from credits at the model's listed price plus 5%.
-Sending each model to its `endpoint` in [`GET /v1/models`](/guides/chat#supported-models)
-puts Codex-eligible models at `/v1/responses`. Other models are served there too and paid
-from credits, so read `codex_eligible`, not `endpoint`, to know whether a request runs on the
-ChatGPT plan.
-
-<Note>
-  On Connect and Pro subscriptions with no ChatGPT linked, and `api_fallback` off, a Codex-eligible
-  model at `/v1/responses` is a `422` rather than a charge. Link ChatGPT, or turn
-  `api_fallback` on.
-</Note>
-
-### The `/chat/completions` guard
-
-A linked user who calls a Codex-eligible model at `/chat/completions` is refused, and
-charged nothing:
-
-```json
-HTTP 409
-{
-  "detail": {
-    "error": "use_responses_for_free_oauth",
-    "message": "'MODEL' is free via POST /v1/responses with your connected ChatGPT account. ...",
-    "model": "MODEL",
-    "free_endpoint": "/v1/responses"
-  }
-}
-```
-
-Send it to `/v1/responses` instead, or turn `api_fallback` on to pay for it at
-`/chat/completions`.
-
----
-
 ## When ChatGPT is unavailable
 
 On Connect and Pro subscriptions, the `api_fallback` preference is `false` by default: if ChatGPT is
@@ -203,12 +157,12 @@ curl -X PATCH https://api.faces.sh/v1/user/preferences \
   -d '{"api_fallback": true}'
 ```
 
-Per request, `"oauth_only": true` on `/v1/responses` (or `"interviewer_billing_source":
-"oauth"` on an interview) refuses to fall back, whatever the preference says. A request
-parameter wins over the stored preference.
+Per request, `"interviewer_billing_source": "oauth"` on an interview, or `oauth_only` on a
+style build, refuses to fall back, whatever the preference says. A request parameter wins
+over the stored preference.
 
-On Free there is no ChatGPT route: `api_fallback` is always `true`, and setting it to `false`,
-or sending `oauth_only: true`, is a `422` `oauth_only_unavailable`. Nothing is charged.
+On Free there is no ChatGPT route: `api_fallback` is always `true`, and setting it to `false`
+is a `422` `oauth_only_unavailable`. Nothing is charged.
 
 ### Errors when ChatGPT refuses
 
@@ -245,19 +199,10 @@ HTTP 422
 ChatGPT sometimes ends a reply without finishing it. Faces retries once. If the second try
 also stops short, `api_fallback` decides:
 
-- **on:** the request is answered from credits, like any other fallback;
+- **on:** the work is paid from credits, like any other fallback;
 - **off:** `503 oauth_incomplete`, and nothing is charged.
 
-The same rule covers interviews and style builds. A style build with `oauth_only` never
-falls back: it retries, then fails.
-
-### Response headers
-
-| Header | Description |
-|--------|-------------|
-| `X-Faces-Billing` | `oauth`: the model ran on your ChatGPT plan. `credits`: the model was paid from your balance. |
-| `X-Faces-Provider` | The model's lab, for example `openai`. |
-| `X-Faces-Cost-USD` | What this request charged your credit balance. |
+A style build with `oauth_only` never falls back: it retries, then fails.
 
 ---
 

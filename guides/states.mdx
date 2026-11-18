@@ -1,22 +1,26 @@
 ---
 title: States
-description: "A state your agent builds and Faces keeps and watches: your premises, the decisions faces made and your messages, each decision kept with the premises it was made under."
+description: "A state your agent builds and Faces keeps and watches: your premises with their status and what they depend on, and the decisions faces made, each kept with what it rests on."
 ---
 
 # States
 
 A **state** is something your agent builds and Faces keeps and watches. It holds your
-**premises** (named facts your agent declares), the **decisions** faces made, every face's
-reply with its cause, and your own messages, linked by what rests on what: each decision is
-kept with the premises in force when it was made. It is not a message log.
+**premises** (named facts your agent declares, each with a status and what it depends on),
+the **decisions** faces made, every face's cause, and your own messages, linked by what rests
+on what. It is not a message log.
 
-When you change a premise, the response says which decisions that puts in question:
-`decisions_made_under_old_values` lists the decisions made under the premise's old value. You can read a state back and
-page through it at any time. Nothing in it is hidden from you.
+When a premise is invalidated, everything that depends on it is too, and the response lists
+each status that changed in `status_changes`. When a premise's value changes,
+`decisions_made_under_old_values` lists the decisions that rested on the old value. You can
+read a state back and page through it at any time. Nothing in it is hidden from you.
 
-A request joins a state with `"conversation": "<id>"`. Send only what is new on each turn:
-the state is put in front of it for you, and a face's own earlier words are never taken from
-the request, so they cannot be rewritten. Entries are **items** in OpenAI's Responses item
+Hand a state to [choices](/guides/choices) as `state_id` to have a face propose options
+for the situation it describes.
+
+A decision or cause request joins a state with `"conversation": "<id>"`. Send only what is
+new on each turn: the state is put in front of it for you, and what a face decided is never
+taken from the request, so it cannot be rewritten. Entries are **items** in OpenAI's Responses item
 format.
 
 Not to be confused with the `state` field of a [decision](/guides/decisions) request, which
@@ -56,24 +60,21 @@ All fields are optional:
 
 ## Take a turn
 
-Add `"conversation": "<id>"` to any request with a face: [chat](/guides/chat)
-(`/v1/chat/completions`, `/v1/responses`, `/v1/messages`), [decisions](/guides/decisions)
-(`/v1/decisions`, `/v1/systemone`) and [causes](/guides/causes). Send only the new message.
+Add `"conversation": "<id>"` to a request with a face on [decisions](/guides/decisions)
+(`/v1/decisions`, `/v1/systemone`) or [causes](/guides/causes). Send only what is new.
 
 ```json
-{"model": "alice@MODEL", "conversation": "fs_STATE_ID",
- "premises": [{"key": "budget_usd", "value": 50000,
-               "description": "the most we can spend this year"}],
- "messages": [{"role": "user", "content": "Is this vendor worth a closer look?"}]}
+{"model": "alice@jev-latest", "conversation": "fs_STATE_ID",
+ "depends_on": ["can_afford_rent"],
+ "input": "Decide about the lease.",
+ "questions": [{"type": "predicate", "name": "move",
+                "instructions": "Move the shop to a cheaper street before March?"}]}
 ```
 
-The face reads the state so far, then your new message, and the turn is added to the
-state: your message, then the face's reply with its `cause` and the model that wrote it.
-Instructions you send (`system`, `developer`) apply to that request only and are not kept. If
-you send earlier messages too, only those after the last reply in your request are kept.
+The face reads the state so far, then your request, and the turn is added to the state. Each
+turn is billed as it would be without a state. See [Decisions in a state](#decisions-in-a-state).
 
-A face's reply streamed or not is kept the same way. Each turn is billed as it would be without
-a state.
+[Choices](/guides/choices) reads a state, with `state_id`, and does not add to it.
 
 ## Items
 
@@ -81,7 +82,8 @@ Each entry is an item, in OpenAI's Responses item format, with an `id` (`ci_1`, 
 in the order it was added.
 
 **A message.** Yours have `role: user`. A face's reply has `role: assistant`, the face's
-`name`, its `cause` and the `model` that answered.
+`name`, its `cause` and, from a chat turn made before chat was retired, the `model` that
+answered.
 
 ```json
 {"id": "ci_7", "type": "message", "role": "assistant", "name": "alice",
@@ -92,8 +94,9 @@ in the order it was added.
 (`source` says which: `decisions` or `systemone`). The `question` has its `name`, `type`
 (`predicate`, `choice` or `score`), `instructions` and `options`; the `answer` has the `result`
 (the probability for a predicate, the chosen value for a choice, the number for a score), the
-`probabilities` and the `confidence`. It also carries the face's `cause`, the `face` and the
-decision `model`. Its `call_id` is the decision's id.
+`probabilities` and the `confidence`. It also carries the face's `cause`, the `face`, the
+decision `model`, the `depends_on` it declared, and its `status`. Its `call_id` is the
+decision's id.
 
 ```json
 {"id": "ci_4", "type": "decision", "call_id": "dec_CALL_ID", "source": "decisions",
@@ -108,10 +111,9 @@ decision `model`. Its `call_id` is the decision's id.
 A state that holds decisions made before 29 October 2026 shows each of those as a
 `function_call` named `decision` and its `function_call_output`, until it expires.
 
-**A face's tool call.** When you send `tools` with a turn and the face calls one, the call is
-kept as a `function_call` naming the `face` and the `model`, and the result you send back
-on the next turn is kept as its `function_call_output`. On that next turn send only the
-result: the state already holds the call it answers.
+**A face's tool call.** A state may hold a face's tool calls from chat turns made before chat
+was retired: each a `function_call` naming the `face` and the `model`, and its
+`function_call_output`.
 
 ```json
 {"id": "ci_3", "type": "function_call", "name": "get_weather", "call_id": "call_CALL_ID",
@@ -120,7 +122,8 @@ result: the state already holds the call it answers.
 ```
 
 **A premise.** A `function_call` named `premise` holding the `key`, and its
-`function_call_output` holding the `value` and its `description`.
+`function_call_output` holding the `value`, its `description`, and the `status` and
+`depends_on` you set.
 
 ```json
 {"id": "ci_2", "type": "function_call", "name": "premise", "call_id": "prem_CALL_ID",
@@ -138,13 +141,66 @@ A premise is a fact your agent's decisions depend on, named by a `key` (1 to 64 
 digits, `_` or `-`), with a `value` and a plain `description`. The description is required
 the first time a key is used, and kept after that.
 
-Send premises with any turn as `premises`, a list of `{key, value, description}`. On
-`/v1/responses` they may also be `premise` items in `input`. Or add them on their own (see
+| Field | Meaning |
+|-------|---------|
+| `key` | **Required.** The premise's name. |
+| `value` | Its value: any JSON. |
+| `description` | What it means, in plain words. Required the first time the key is used. |
+| `status` | How sure your agent is of it: `stated` (the default), `verified`, `assumed`, `unresolved` or `invalidated`. |
+| `depends_on` | The premise keys and decision ids it rests on: a list of at most 200, each already in the state or sent in the same request. A premise cannot depend on itself. |
+
+Send premises with a turn as `premises`, a list of these, or add them on their own (see
 [Add items](#add-items)).
 
-A newer value of a key replaces it from that point on. Every decision is made with the
-premises in force when it was made, and the state keeps each value, so you can always see
-what a decision was made under.
+A newer reading of a key replaces it from that point on. A newer reading without
+`depends_on` keeps the earlier one; `[]` clears it. Every decision is made with the premises
+in force when it was made, and the state keeps each reading, so you can always see what a
+decision was made under.
+
+## Status
+
+Each premise has the status your agent gave it, and each decision is `decided`. What you read
+back is the **effective** status: `invalidated` when the item's own status is, or when
+anything it depends on is invalidated, directly or through other items; otherwise its own.
+Only `invalidated` spreads. An item that declared no `depends_on` does not depend on anything.
+
+Set an invalidated premise to another status and what depended on it is restored, unless it
+still depends on something else that is invalidated.
+
+A write answers with `status_changes`: every effective status that changed, and why:
+
+```bash
+curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"premises": [{"key": "rent_rises", "value": "no rise this year", "status": "invalidated"}]}'
+```
+
+```json
+{"object": "list", "data": [ … ],
+ "premises": {
+   "chain_opened": {"value": true, "description": "a national chain opened a bakery across the street",
+                    "status": "verified"},
+   "rent_rises": {"value": "no rise this year", "description": "the landlord says rent goes up 12% in March",
+                  "status": "invalidated"},
+   "can_afford_rent": {"value": false, "description": "the shop cannot carry the higher rent at current sales",
+                       "status": "invalidated", "asserted_status": "stated", "because": "rent_rises",
+                       "depends_on": ["rent_rises"]}},
+ "decisions_made_under_old_values": [],
+ "status_changes": [
+   {"kind": "premise", "key": "rent_rises", "from": "assumed", "to": "invalidated", "because": null},
+   {"kind": "premise", "key": "can_afford_rent", "from": "stated", "to": "invalidated", "because": "rent_rises"},
+   {"kind": "decision", "id": "dec_DECISION_ID", "from": "decided", "to": "invalidated", "because": "can_afford_rent"}]}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `status` | The effective status. |
+| `asserted_status` | The status your agent set, shown when it differs from `status`. |
+| `because` | What invalidated it, when that was something it depends on. |
+| `depends_on` | What it rests on, as declared. |
+
+A decision item carries `status` (`decided` or `invalidated`) and `because` the same way.
 
 ## Add items
 
@@ -162,19 +218,43 @@ curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
 {"object": "list", "data": [{"id": "ci_11", "type": "function_call", "name": "premise", …},
                             {"id": "ci_12", "type": "function_call_output", …}],
  "first_id": "ci_11", "last_id": "ci_12", "has_more": false,
- "premises": {"vendor_certified": {"value": false,
+ "premises": {"vendor_certified": {"value": false, "status": "stated",
                                    "description": "the vendor holds a SOC 2 report"},
-              "budget_usd": {"value": 50000,
+              "budget_usd": {"value": 50000, "status": "stated",
                              "description": "the most we can spend this year"}},
  "decisions_made_under_old_values": [
    {"call_id": "dec_CALL_ID", "question": {"id": "sign", "instructions": "Sign the contract?", …},
-    "choice": "no", "face": "alice",
-    "changed": {"vendor_certified": {"was": true, "now": false}}}]}
+    "choice": "no", "face": "alice", "via": null,
+    "changed": {"vendor_certified": {"was": true, "now": false}}}],
+ "status_changes": []}
 ```
 
-`premises` is each key's current value. `decisions_made_under_old_values` lists every
-earlier decision made while a key you just changed held a different value, so your agent can
-decide which to revisit. Nothing is decided again for you.
+`premises` is each key's current reading, with its [status](#status). `status_changes`
+lists every effective status the write changed. `decisions_made_under_old_values` lists
+every earlier decision that rested on a key whose value you just changed: the keys it
+declared in `depends_on`, or every premise in force when it was made if it declared none,
+and any decision resting on one of those, with `via` naming the decision that reached it.
+Your agent decides which to revisit. Nothing is decided again for you.
+
+## Decisions in a state
+
+A decision request in a state may send `depends_on`: the premise keys and decision ids the
+decision rests on, at most 200, each already in the state or sent as a premise in the same
+request. The decision is shown those premises and decisions, and is invalidated when one of
+them is. Without `depends_on`, it rests on every premise in force when it is made.
+
+The response adds `decision_ids`, each question's decision id, to name in a later
+`depends_on`, and `decisions_reopened`, the decisions the premises sent with it put in
+question:
+
+```json
+{"object": "decision", "model": "alice@jev-1.14.0",
+ "answers": [{"type": "predicate", "name": "move", "probability": 0.65}],
+ "cause": "…",
+ "decision_ids": {"move": "dec_DECISION_ID"},
+ "decisions_reopened": [],
+ "usage": {"input_tokens": 3482, "output_tokens": 157}}
+```
 
 ## Several faces
 
@@ -189,7 +269,8 @@ the state or on the turn.
 `items`, `turns` and `last_used_at` up to date.
 
 `GET /v1/states/{state_id}/items` lists the items a page at a time, like
-OpenAI's list of conversation items. **Newest first** by default.
+OpenAI's list of conversation items. **Newest first** by default. Each premise and decision
+carries its effective `status`, as in [Status](#status).
 
 | Parameter | What it does |
 |---|---|
@@ -211,7 +292,7 @@ curl "https://api.faces.sh/v1/states/fs_STATE_ID/items?limit=2" \
    {"id": "ci_2", "type": "function_call", "name": "premise", "call_id": "prem_CALL_ID",
     "arguments": "{\"key\": \"budget\"}"}],
  "first_id": "ci_3", "last_id": "ci_2", "has_more": true,
- "premises": {"budget": {"value": "50k", "description": "the offsite budget"}}}
+ "premises": {"budget": {"value": "50k", "description": "the offsite budget", "status": "stated"}}}
 ```
 
 `has_more` is `true` while there are more pages. With `format=faces`, every page also carries
@@ -264,6 +345,12 @@ expire.
 Creating a state, adding items and compacting count against your plan's per-minute
 [rate limit](/errors#rate-limits).
 
+<Note>
+Every state route takes `version`, a body field on `POST` and a query parameter on `GET`:
+`23`, the default, or `22`, which reads and writes the same states without statuses or
+`depends_on` (sending them is a `422`) and without `status_changes`.
+</Note>
+
 ## Expiry
 
 A state expires 30 days after it was last used, and is then deleted with everything in
@@ -286,6 +373,10 @@ states at once.
 | `422` | `conversation` and `session` both sent, with different ids | `` send `conversation` (or its old name `session`), not both `` |
 | `422` | `causes_visible` that is not `true` or `false` | `` `causes_visible` is true or false `` |
 | `422` | Compacting a state open to any face, without `model` | `` this conversation takes any face: name the one to compact in `model` `` |
+| `422` | A premise `status` that is not one of the five | `` a premise `status` is one of stated, verified, assumed, unresolved, invalidated ('maybe') `` |
+| `422` | A premise that depends on itself | `` premise 'rent' cannot depend on itself `` |
+| `422` | `depends_on` naming something not in the state or the request | `` premise 'can_afford_rent': `depends_on` names no premise or decision in this conversation: rent `` |
+| `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys and decision ids `` |
 | `402` | A turn or a compaction with no credit left | See [Billing](/guides/billing). |
 | `403` | The API key may not use the face | See [Errors](/errors). |
 | `429` | The per-minute rate limit, or the cause allowance is used and `api_fallback` is off | Names the limit. |

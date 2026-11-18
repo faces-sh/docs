@@ -16,23 +16,7 @@ it stands. A few routes answer with an object instead, carrying a machine-readab
 alongside the sentence: [OAuth](/guides/oauth), parts of [style](/guides/style), and
 the compile refusals below. Each documents its own codes. A client that prints `detail`
 should expect either, and the key carrying the code is not the same on all of them:
-`error` on some, `error_code` on the compile refusals, `code` on the provider-shaped
-ones.
-
-The provider-shaped errors, on `/v1/chat/completions`, `/v1/responses` and `/v1/messages`,
-carry `message`, `type`, `code` and `param`, plus `reason` and `retryable` where present.
-`provider`, when present, is the lab that made the model. An error from the model may read
-only "The model returned an error. Please try again."
-
-When the model fails or cannot be reached, these endpoints answer `503` with `error.type`
-`provider_error`, or `upstream_account_limit` with a `reason`. **`error.retryable` says whether
-to send it again:** `false` means the same request will fail again, as with "This model is not
-available right now. Try another model." A `429` stays a `429`, and a `400`, `413` or `422`
-carries the model's own status and message, such as a request longer than the model takes.
-
-On a face request that is not streamed, a model that has not finished its reply within 300
-seconds is also a `503`, and the message says so. Sending the same request again will likely
-stop the same way: ask for a shorter reply, or set `stream: true`.
+``error` on some, `error_code` on the compile refusals.
 
 ## The reference code
 
@@ -54,10 +38,11 @@ to retry with, and the same request sent twice produces two different references
 | `403` | The credentials are valid, but this key may not use that face or model. | No. |
 | `404` | It does not exist, **or it exists and is not yours.** | No. |
 | `409` | It exists, and is locked or busy right now. | After a delay. |
-| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. On `/v1/chat/completions`, also a model that used all of `max_tokens` before replying: see [below](#422-when-max_tokens-runs-out-before-the-reply). | No: read the message. |
+| `410` | The route is retired: the chat endpoints and fidelity runs. See [below](#410-chat-is-retired). Nothing is charged. | No: use [`/v1/choices`](/guides/choices). |
+| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
 | `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
-| `503` | Something we depend on was busy or failed: "Could not … Please try again. Reference …", often with `Retry-After`. The message says what failed and whether anything was charged. On the chat endpoints, also the model failing or being unavailable: see below. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. On the chat endpoints, not when `retryable` is `false`. |
+| `503` | Something we depend on was busy or failed: "Could not … Please try again. Reference …", often with `Retry-After`. The message says what failed and whether anything was charged. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. |
 
 ### `404` where you might expect `403`
 
@@ -78,20 +63,27 @@ and models, or a face you may not act on.
 A wrong *current* password on `PATCH /auth/me` or `/auth/change-password` is also a
 `403`.
 
-### Malformed bodies
+### `410`: chat is retired
 
-On `/v1/chat/completions`, `/v1/responses` and `/v1/messages`, an empty body, a body
-that is not JSON, or JSON that is not an object is a `400`:
+`POST /v1/chat/completions`, `POST /v1/responses`, `POST /v1/messages`, and starting or
+advancing a [fidelity run](/guides/fidelity), answer `410 Gone` before anything is read or
+charged. `detail` is the sentence; `error` is the shape OpenAI- and Anthropic-compatible
+clients read, with the code `chat_retired`:
 
 ```json
-{ "detail": "Bad request: … Send a JSON object." }
+{
+  "detail": "Chat is retired. Use POST /v1/choices with model \"maestro-1\" and view \"@<alias>\" (and /v1/states for the situation). Nothing was charged.",
+  "error": {"type": "gone", "code": "chat_retired", "message": "Chat is retired. ..."}
+}
 ```
+
+See [Chat (retired)](/guides/chat).
 
 ### Rate limits
 
 Every route that runs a model or a compile counts against one per-account, per-minute
-limit set by plan: `/v1/chat/completions`, `/v1/responses`, `/v1/messages`,
-`/v1/decisions`, `/v1/systemone`, `/v1/causes`, and both compile `/make` routes. All of
+limit set by plan: `/v1/choices`, `/v1/decisions`, `/v1/systemone`, `/v1/causes`, and
+both compile `/make` routes. All of
 an account's keys share the count. Read the limits from
 [`GET /v1/rates`](/guides/billing#current-rates) `limits.requests_per_minute` rather
 than hard-coding them. Billing routes have their own, smaller limits.
@@ -134,45 +126,7 @@ of value was at fault:
 ```
 
 Anything that reads a status code to decide whether to retry should treat a `422` as
-final. The one exception is `max_tokens_exhausted`, below: it is fixed by raising
-`max_tokens`, not by sending the same request again.
-
-### `422` when `max_tokens` runs out before the reply
-
-Some models think before they answer and do not return that thinking on
-`/v1/chat/completions`. The thinking counts against `max_tokens`. If it uses all of
-`max_tokens` before the model writes a word, there is no reply to send, and the answer is a
-`422` rather than an empty message:
-
-```json
-{
-  "error": {
-    "type": "max_tokens_exhausted",
-    "code": "max_tokens_exhausted",
-    "message": "The model used all of max_tokens (300) on reasoning it does not return, before writing any reply, so there is no text to send. Raise max_tokens and try again. The tokens were used and are billed; see usage.",
-    "param": "max_tokens",
-    "retryable": true
-  },
-  "usage": { "prompt_tokens": 412, "completion_tokens": 300, "total_tokens": 712 }
-}
-```
-
-**The tokens are billed.** `usage` and `X-Faces-Cost-USD` show the charge. `param` is
-`max_completion_tokens` when that is what the request set.
-
-**On a stream,** the `200` has already been sent, so the stream ends with the chat error
-event in place of the reply, carrying the same code and `usage`, then `data: [DONE]`:
-
-```
-data: {"error": {"message": "The model used all of max_tokens ...", "code": "max_tokens_exhausted", "status": 422}, "detail": {...}}
-```
-
-**The fix is a larger `max_tokens`.** A reply that stops at `max_tokens` after writing some
-text is not an error: it ends with `finish_reason: "length"`, as usual.
-
-`/v1/messages` and `/v1/responses` do not use this code. They already show what happened:
-`/v1/messages` returns the thinking block and `stop_reason: "max_tokens"`, and
-`/v1/responses` returns `status: "incomplete"` with its reason.
+final.
 
 ### A `400` that names the rule
 

@@ -6,26 +6,26 @@ description: The face's cause alone, with no answering model.
 # Causes
 
 `POST /v1/causes` returns a face's **cause** alone, in Faces' own format: the principal *why* behind the
-face's response in this context. It is the same text chat returns in `message.cause` and the
+face's response in this context. It is the same text the
 [decision endpoints](/guides/decisions) return in `cause` and `causes`. No model answers, so
 you pay only the [cause rate](/guides/billing#current-rates): per million input tokens, plus a
 fixed number of tokens per cause. The price is listed as `faces-causes-latest` in
-[`GET /v1/models?kind=cause`](/guides/chat#supported-models). `model` is still the face, not
+[`GET /v1/models?kind=cause`](/guides/choices#list-the-models). `model` is still the face, not
 that id.
 
-Every other endpoint is a compatible endpoint, in another API's own format. Address it as
-`face@model`, and the face's cause guides that model's answer. Address a face alone, and you
-get just the cause, in that API's own format.
+The [decision endpoints](/guides/decisions) are compatible endpoints, in another API's own format. Address them as
+`face@model`, and the face's cause guides that model's answer. To have the face propose
+options, use [choices](/guides/choices).
 
 Use it to steer your own model or pipeline with a face's cause.
 To bring another face's view into a prompt, get its cause from `POST /v1/causes` and include it in your own messages.
 
 `model` is the face alone (`alice`, or `owner:alias` for a face shared with you), or a [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) such as `(alice | bob)`. `alice@<model>`
-is a `400`: to have a model answer, use [chat](/guides/chat) or [decisions](/guides/decisions).
+is a `400`: to have a model answer, use [decisions](/guides/decisions).
 
-## A chat turn
+## Messages
 
-Send the body you'd send to `/v1/chat/completions`. The cause is for the last message.
+Send `messages`, as in OpenAI's chat format. The cause is for the last message.
 
 ```bash
 curl -X POST https://api.faces.sh/v1/causes \
@@ -38,7 +38,7 @@ curl -X POST https://api.faces.sh/v1/causes \
 {"object": "cause", "model": "alice", "cause": "…", "usage": {"input_tokens": 1234, "output_tokens": 210}}
 ```
 
-Send earlier causes back in the transcript, as on chat.
+Send earlier causes back in the transcript, as assistant messages.
 The cause reads every message you send. A request takes at most 30,000 tokens, across all its
 messages: over that is a `422` naming the limit, before any work, so nothing is charged:
 

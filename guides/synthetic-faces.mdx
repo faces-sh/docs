@@ -59,7 +59,7 @@ curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
   -d '{"formula": "alice & mentor"}'
 ```
 
-Changes take effect immediately on the next chat request.
+Changes take effect immediately on the next request.
 
 `{"formula": ""}` removes the formula: the face reads `"formula": null` and is an ordinary face again.
 
@@ -69,22 +69,20 @@ face is unchanged: create a new face with the formula instead.
 
 ---
 
-## Chat with a synthetic face
+## Ask a synthetic face
 
-The same as chatting with any face, with one difference: name a model with `@model`.
+The same as asking any face:
 
 ```bash
-curl -X POST https://api.faces.sh/v1/chat/completions \
+curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "alice-and-bob@claude-sonnet-4-6",
-    "messages": [{"role": "user", "content": "How do you approach creative problems?"}]
+    "view": "@alice-and-bob",
+    "state": "A team wants to ship a feature on Friday without tests because the demo is Monday.",
+    "instructions": "What should the team do?"
   }'
 ```
-
-The bare alias with no `@model` returns `409`. This is the same rule as for
-[run-time composites](#run-time-composites-compose-on-the-fly).
 
 ---
 
@@ -109,19 +107,20 @@ Invalid formulas return `422` with a description of the problem.
 
 ## Run-time composites (compose on the fly)
 
-You don't have to create a synthetic face first. You can pass a formula **directly in the `model` field** of a chat request and have it composed for that one call:
+You don't have to create a synthetic face first. You can pass a formula **directly as the face** and have it composed for that one call:
 
 ```bash
-curl -X POST https://api.faces.sh/v1/chat/completions \
+curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "(alice | bob)@claude-sonnet-4-6",
-    "messages": [{"role": "user", "content": "How do you approach creative problems?"}]
+    "view": "@(alice | bob)",
+    "state": "A student asks whether to switch from physics to philosophy in their final year.",
+    "instructions": "What should the student do?"
   }'
 ```
 
-The same operators apply (`|`, `&`, `-`, `^`, parentheses). A composite works wherever a face does: chat (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), [`/v1/causes`](/guides/causes), [`/v1/decisions` and `/v1/systemone`](/guides/decisions).
+The same operators apply (`|`, `&`, `-`, `^`, parentheses). A composite works wherever a face does: [`/v1/choices`](/guides/choices) (as `view`), [`/v1/causes`](/guides/causes), [`/v1/decisions` and `/v1/systemone`](/guides/decisions).
 
 Behaviorally a run-time composite is identical to a persisted one of the same operands, and there's no meaningful latency difference. Persist when you'll reuse it (and want to name it); compose on the fly for one-off blends.
 

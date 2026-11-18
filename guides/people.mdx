@@ -11,7 +11,7 @@ one carries, who follows whom, and how to render a wall of either without a requ
 per row.
 
 Accounts are addressed by `username`, which is the same handle that appears as
-`owned_by` on every face and as the left half of a chat handle (`owned_by:alias`).
+`owned_by` on every face and as the left half of a handle (`owned_by:alias`).
 
 ---
 
@@ -27,10 +27,10 @@ the face a request names.
 
 ### Addressing it
 
-| | Path | Chat `model` |
+| | Path | Choices `view` |
 | --- | --- | --- |
-| Yours | `/v1/faces/me` | `me@<model>` |
-| Anyone's | `/v1/faces/<username>:me` | `<username>:me@<model>` |
+| Yours | `/v1/faces/me` | `@me` |
+| Anyone's | `/v1/faces/<username>:me` | `@<username>:me` |
 
 Someone else's `me` is readable only if they publish it or share it with you; the
 [avatar](#your-picture) is the exception. `/auth/me` and the face list carry no flag
@@ -54,7 +54,7 @@ Neither carries an `error_code`: branch on the status. Everything else works as 
 face. Edit it with `PATCH /v1/faces/me` (`name`, `specialty`, `description`,
 `basic_facts` and the rest); its alias, like every face's, cannot be changed. Compile
 into it, build its [style](/guides/style) with `"self_face": "me"`, publish it, share
-it, lock it, add it to groups. With nothing compiled, chatting to it is a `409`, as for
+it, lock it, add it to groups. With nothing compiled, asking it is a `409`, as for
 any face.
 
 <Note>
@@ -86,7 +86,7 @@ uploaded a picture.
 **Anyone's account picture is fetchable; the rest of their `me` face is not.**
 A `me` face is private unless its owner chooses to publish it. The avatar route is the
 single exception. Unless it is published, `GET /v1/faces/alice:me`,
-its avatar versions, its profile and chatting with it all stay shut.
+its avatar versions, its profile and asking it all stay shut.
 </Note>
 
 Generate one from your compiled profile, or
