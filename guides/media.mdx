@@ -1,0 +1,101 @@
+---
+title: Media
+description: The kinds of writing a source can be, and a chat request can be in. Each with a description and what it covers.
+---
+
+# Media
+
+A **medium** is the kind of writing a text is: an email, an essay, a speech. Every document
+you [compile](/guides/compile#medium) declares one, a face's [styles](/guides/style) are built
+one per medium, and [chat](/guides/chat#how-a-face-steers) chooses one for each request to pick
+the style it applies.
+
+## List them
+
+```bash
+curl https://api.faces.sh/v1/media
+```
+
+No API key is needed, and the answer is cached for an hour. Each medium has its `name` (the
+value to send), a one-line `description`, and the `subcategories` it covers:
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "object": "medium",
+      "name": "email",
+      "description": "A message sent by email, with a greeting, sign-off or subject line.",
+      "subcategories": [
+        "work email",
+        "personal email",
+        "cold outreach",
+        "follow-up",
+        "introduction"
+      ]
+    },
+    {
+      "object": "medium",
+      "name": "text message",
+      "description": "A short message to a person in a texting or chat app: terse, usually no greeting.",
+      "subcategories": [
+        "SMS",
+        "iMessage",
+        "WhatsApp message",
+        "chat-app direct message"
+      ]
+    }
+  ]
+}
+```
+
+Trimmed to two. Read the list from here rather than hard-coding it.
+
+## The media
+
+25 media, as `GET /v1/media` lists them today:
+
+| `name` | What it is | Covers |
+| - | - | - |
+| `email` | A message sent by email, with a greeting, sign-off or subject line. | work email, personal email, cold outreach, follow-up, introduction |
+| `text message` | A short message to a person in a texting or chat app: terse, usually no greeting. | SMS, iMessage, WhatsApp message, chat-app direct message |
+| `social post` | A post published on a social network. | tweet, X thread, LinkedIn post, Instagram caption, Facebook post |
+| `essay` | Prose that argues or reflects on an idea for a general reader. | op-ed, personal essay, argumentative essay, reflective essay, opinion piece |
+| `academic paper` | A scholarly paper, or a section of one, written for peers. | abstract, methods, literature review, journal article, conference paper, thesis chapter |
+| `blog post` | A post on a blog. | company blog post, personal blog post, Medium post, tutorial post, listicle |
+| `legal document` | A document with legal force or a legal purpose. | contract, agreement, policy, terms of service, will, waiver, clause, formal legal letter |
+| `thread reply` | A reply or comment in a forum or comment thread. | Reddit comment, Hacker News comment, GitHub issue comment, Stack Overflow answer, comment under a post or video |
+| `conversation` | Spoken, turn-taking speech written out: what is said on a call or face to face. | phone or video call, face-to-face talk, dialogue, role-play, interview transcript, voice note, meeting |
+| `lecture` | Teaching: a long spoken explanation to learners, with structure, examples and definitions. | lecture, class, lesson, seminar or conference talk, training session, presentation script, talk script |
+| `speech` | A spoken address that moves an audience on an occasion, with a rhetorical shape: hook, repetition, call to action, closing line. | keynote, toast, eulogy, address, remarks, commencement speech, wedding speech, rally speech |
+| `sermon` | A religious address to a congregation, built on a text or teaching. | sermon, homily, Sunday message, devotional talk, dharma talk |
+| `journal entry` | Private writing to oneself: a diary or journal entry. | diary entry, journal entry, morning pages, gratitude journal, reflection log |
+| `poem` | Verse, in any form. | free verse, sonnet, haiku, limerick, rhyming poem, spoken-word poem |
+| `song lyrics` | Words written to be sung. | song, verse and chorus, rap lyrics, hymn, jingle |
+| `cover letter` | A letter applying for a job, program or position. | job cover letter, motivation letter, application letter, letter of interest |
+| `press release` | An announcement written for journalists, in news style. | product launch announcement, funding announcement, company news release, media advisory |
+| `report` | A structured document that informs a reader about findings, status or a decision to make. | memo, status report, business report, incident report, research brief, executive summary, white paper |
+| `newsletter` | An issue of a newsletter sent to subscribers. | Substack issue, company newsletter, community newsletter, email digest |
+| `fiction` | Invented narrative prose. | short story, novel chapter, flash fiction, fan fiction, fable |
+| `script` | Words written for performers or for recorded media, with scene, speaker or shot cues. A script for a talk the author gives is a lecture or a speech, not this. | screenplay, video script, podcast script, stage play, YouTube script, ad script |
+| `marketing copy` | Persuasive text that sells a product, service or cause. | ad copy, landing page, product description, tagline, sales page, brochure |
+| `review` | An evaluation of a product, work, place or service. | product review, book review, film review, restaurant review, app store review |
+| `technical documentation` | Writing that explains how to use or build something technical. | README, API reference, user guide, how-to guide, release notes, design doc, runbook |
+| `other` | Writing in none of the named forms, as declared by its author. |  |
+
+**Send the name exactly.** Case and surrounding whitespace are forgiven (`"  ESSAY "` is
+`essay`); nothing else is. A subcategory or another word for a medium (`keynote`, `sms`,
+`transcript`) is a `422` that lists every name:
+
+```json
+{"detail": "unknown medium 'keynote'; expected one of: academic paper, blog post, conversation, cover letter, email, essay, fiction, journal entry, lecture, legal document, marketing copy, newsletter, other, poem, press release, report, review, script, sermon, social post, song lyrics, speech, technical documentation, text message, thread reply"}
+```
+
+`keynote` is a subcategory of `speech`: send `speech`.
+
+## `other`
+
+`other` is for writing that is none of the named forms. It is a declaration by the author: a
+document filed as `other` compiles, and its style is kept under `other`. Chat never chooses
+`other` for a request, so an `other` style is not applied on chat.

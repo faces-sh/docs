@@ -3056,6 +3056,28 @@
         }
       }
     },
+    "/v1/media": {
+      "get": {
+        "tags": [
+          "Media"
+        ],
+        "summary": "List Media",
+        "description": "Every medium a client may declare (`medium` on a document, a thread or a request).",
+        "operationId": "list_media_v1_media_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediumListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/chat/completions": {
       "post": {
         "tags": [
@@ -13553,6 +13575,58 @@
       "MeResponse": {
         "additionalProperties": true,
         "type": "object"
+      },
+      "MediumListResponse": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "title": "Object",
+            "default": "list"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MediumObject"
+            },
+            "type": "array",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "MediumListResponse"
+      },
+      "MediumObject": {
+        "properties": {
+          "object": {
+            "type": "string",
+            "title": "Object",
+            "default": "medium"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "subcategories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Subcategories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "subcategories"
+        ],
+        "title": "MediumObject"
       },
       "ModelStatsEntry": {
         "properties": {

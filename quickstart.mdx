@@ -141,7 +141,7 @@ curl -X POST "https://api.faces.sh/v1/faces/alice/upload?medium=essay&perspectiv
   -F "file=@alice_journal.txt"
 ```
 
-`medium`, `perspective` and `type` are query parameters, not form fields. `medium` is one of `academic paper`, `blog post`, `conversation`, `email`, `essay`, `lecture`, `legal document`, `other`, `social post`, `text message` or `thread reply`. `perspective` is `first-person` when the face wrote the text and `third-person` (the default) when it is about the face.
+`medium`, `perspective` and `type` are query parameters, not form fields. `medium` is what the text is, one of the 25 names [`GET /v1/media`](/guides/media) lists (`essay`, `email`, `speech`, `journal entry`, ...). `perspective` is `first-person` when the face wrote the text and `third-person` (the default) when it is about the face.
 
 ```json
 {
