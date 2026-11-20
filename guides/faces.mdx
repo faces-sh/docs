@@ -5,7 +5,7 @@ description: Create, configure, and manage your faces.
 
 # Faces
 
-A face is a causal model compiled from source texts. Prompted, it returns a [cause](/guides/causes) that steers any model you pair it with. Faces are identified by a unique `alias` within your account.
+A face is a causal model compiled from source texts. Prompted, it works out a cause that steers any model you pair it with: see [Naming a model](/guides/models). Faces are identified by a unique `alias` within your account.
 
 ---
 
@@ -130,7 +130,7 @@ a big upload.
 
 ### `profile_addendum`
 
-A saved system prompt fragment stored on the face. It was sent to the answering model on each chat request. [Chat is retired](/guides/chat), and [choices](/guides/choices), [decisions](/guides/decisions) and [causes](/guides/causes) do not use it; it is still stored and returned to the owner.
+A saved system prompt fragment stored on the face. It is sent to the downstream model on each [chat](/guides/chat) request with the face; [choices](/guides/choices) and [decisions](/guides/decisions) do not use it. Only the owner can read it.
 
 Use it for durable behavioral instructions: output format rules, guardrails, tone constraints, tool-use conventions.
 
@@ -505,7 +505,7 @@ curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
 
 ### `default_model`
 
-The face's preferred LLM, stored for clients to read. No route applies it. Accepts any model name from the [models list](/guides/choices#list-the-models).
+The face's preferred chat model, stored for clients to read. The API never fills it in: `model` always names the downstream model (`@alice:maestro-1/<model>`), and a client can put this one there. Accepts any model name from the [models list](/guides/models#listing-the-models).
 
 PATCH also accepts `name`, `specialty`, `description`, `profile_addendum`, `formula`, `basic_facts` and `default_tools`. For the text fields (`specialty`, `description`, `profile_addendum`) an empty string clears the field and omitting it leaves it unchanged.
 
@@ -546,7 +546,7 @@ When a face is locked, any write to it or to anything it owns is refused with `4
 | Blocked while locked | Still allowed |
 |----------------------|---------------|
 | Editing the face (name, description, basic facts, model, and the rest) | Reading the face, its documents, and its threads |
-| Adding, editing, compiling, or deleting its documents and threads | Asking the face (choices, decisions, causes) |
+| Adding, editing, compiling, or deleting its documents and threads | Asking the face (choices, chat, decisions) |
 | Uploading or importing new source material | Unlocking it |
 | Deleting the face itself | |
 

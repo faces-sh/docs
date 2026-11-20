@@ -7,18 +7,20 @@ description: "A state your agent builds and Faces keeps and watches: your premis
 
 A **state** is something your agent builds and Faces keeps and watches. It holds your
 **premises** (named facts your agent declares, each with a status and what it depends on),
-the **decisions** faces made, every face's cause, and your own messages, linked by what rests
+the **decisions** faces made, the faces' replies, and your own messages, linked by what rests
 on what. It is not a message log.
 
 When a premise is invalidated, everything that depends on it is too, and the response lists
 each status that changed in `status_changes`. When a premise's value changes,
 `decisions_made_under_old_values` lists the decisions that rested on the old value. You can
-read a state back and page through it at any time. Nothing in it is hidden from you.
+read a state back and page through it at any time. A face's cause is the one thing kept on the
+server and never returned: the state keeps it so the face's later turns build on it.
 
 Hand a state to [choices](/guides/choices) as `state_id` to have a face propose options
 for the situation it describes.
 
-A decision or cause request joins a state with `"conversation": "<id>"`. Send only what is
+A [chat](/guides/chat) or [decision](/guides/decisions) request joins a state with
+`"conversation": "<id>"`. Send only what is
 new on each turn: the state is put in front of it for you, and what a face decided is never
 taken from the request, so it cannot be rewritten. Entries are **items** in OpenAI's Responses item
 format.
@@ -54,17 +56,18 @@ All fields are optional:
 
 | Field | Meaning |
 |-------|---------|
-| `model` | A face (`alice`, `owner:alias`). The state then takes that face only. Left out, it takes any of your faces. |
-| `causes_visible` | Whether a face sees the other faces' causes. Default `true`. |
+| `model` | A face, alone: `@alice`, `@owner~alias`, or a composite (`(@alice \| @bob)`). No maestro is needed (`@alice:maestro-1` is the same face), and a downstream model is a `422`. The state then takes that face only, and echoes it as `model`. Left out, it takes any of your faces. |
+| `causes_visible` | Whether a face's steering reads the other faces' causes. Default `true`. |
 | `items` | The first items: your messages and premises (see [Add items](#add-items)). |
 
 ## Take a turn
 
-Add `"conversation": "<id>"` to a request with a face on [decisions](/guides/decisions)
-(`/v1/decisions`, `/v1/systemone`) or [causes](/guides/causes). Send only what is new.
+Add `"conversation": "<id>"` to a request with a face on [chat](/guides/chat)
+(`/v1/chat/completions`, `/v1/responses`, `/v1/messages`) or [decisions](/guides/decisions)
+(`/v1/decisions`, `/v1/systemone`). Send only what is new.
 
 ```json
-{"model": "alice@jev-latest", "conversation": "fs_STATE_ID",
+{"model": "@alice:maestro-1/jev-latest", "conversation": "fs_STATE_ID",
  "depends_on": ["can_afford_rent"],
  "input": "Decide about the lease.",
  "questions": [{"type": "predicate", "name": "move",
@@ -83,21 +86,21 @@ persist as premises with [Add items](#add-items).
 Each entry is an item, in OpenAI's Responses item format, with an `id` (`ci_1`, `ci_2`, ...)
 in the order it was added.
 
-**A message.** Yours have `role: user`. A face's reply has `role: assistant`, the face's
-`name`, its `cause` and, from a chat turn made before chat was retired, the `model` that
-answered.
+**A message.** Yours have `role: user`. A face's reply on chat has `role: assistant`, the
+face's `name`, the `model` that answered and `shown`, the items it read.
 
 ```json
 {"id": "ci_7", "type": "message", "role": "assistant", "name": "alice",
- "model": "MODEL", "cause": "…", "content": "It is worth a closer look: …"}
+ "model": "gpt-5.4-mini-2026-03-17", "shown": ["ci_3", "ci_4"],
+ "content": "Yes, 40k fits under the 50k budget."}
 ```
 
 **A decision.** One item of type `decision`, in the same shape whichever route asked it
 (`source` says which: `decisions` or `systemone`). The `question` has its `name`, `type`
 (`predicate`, `choice` or `score`), `instructions` and `options`; the `answer` has the `result`
 (the probability for a predicate, the chosen value for a choice, the number for a score), the
-`probabilities` and the `confidence`. It also carries the face's `cause`, the `face`, the
-decision `model`, the `depends_on` it declared, and its `status`. Its `call_id` is the
+`probabilities` and the `confidence`. It also carries the `face`, the decision `model`, the
+`depends_on` it declared, and its `status`. Its `call_id` is the
 decision's id.
 
 ```json
@@ -106,16 +109,14 @@ decision's id.
  "question": {"name": "planner", "type": "choice", "instructions": "Hire an outside planner?",
               "options": [{"value": "yes"}, {"value": "no"}]},
  "answer": {"result": "no", "confidence": 0.68,
-            "probabilities": [{"value": "yes", "probability": 0.16}, {"value": "no", "probability": 0.84}]},
- "cause": "…"}
+            "probabilities": [{"value": "yes", "probability": 0.16}, {"value": "no", "probability": 0.84}]}}
 ```
 
 A state that holds decisions made before 29 October 2026 shows each of those as a
 `function_call` named `decision` and its `function_call_output`, until it expires.
 
-**A face's tool call.** A state may hold a face's tool calls from chat turns made before chat
-was retired: each a `function_call` naming the `face` and the `model`, and its
-`function_call_output`.
+**A face's tool call.** A state may hold a face's tool calls from chat turns: each a
+`function_call` naming the `face` and the `model`, and its `function_call_output`.
 
 ```json
 {"id": "ci_3", "type": "function_call", "name": "get_weather", "call_id": "call_CALL_ID",
@@ -250,20 +251,20 @@ The response adds `decision_ids`, each question's decision id, to name in a late
 question:
 
 ```json
-{"object": "decision", "model": "alice@jev-1.14.0",
- "answers": [{"type": "predicate", "name": "move", "probability": 0.65}],
- "cause": "…",
+{"object": "decision", "model": "@alice:maestro-1/jev-latest",
+ "answers": [{"type": "predicate", "name": "move", "probability": 0.36}],
  "decision_ids": {"move": "dec_DECISION_ID"},
  "decisions_reopened": [],
- "usage": {"input_tokens": 3482, "output_tokens": 157}}
+ "answered_by": "jev-1.14.0",
+ "usage": {"input_tokens": 1685, "output_tokens": 279}}
 ```
 
 ## Several faces
 
 A state opened without `model` takes any of your faces, each turn naming its face in
 `model`. Each face reads its own replies as its own, and the others' as someone else's,
-labelled with their name. It reads their causes too, unless `causes_visible` is `false` on
-the state or on the turn.
+labelled with their name. Its steering reads their causes too, unless `causes_visible` is
+`false` on the state or on the turn.
 
 ## Read a state
 
@@ -302,31 +303,32 @@ the `premises` in force now, all of them.
 
 `format=openai` returns only the item types and fields OpenAI defines, so you can pass them
 to anything that reads OpenAI's conversation items. Our own fields are left out: the face's
-name, the model, the cause and the premises. A decision becomes a call to a `decision` tool
+name, the model and the premises. A decision becomes a call to a `decision` tool
 followed by its result. Any other `format` is a `422`.
 
 ## Compact
 
-`POST /v1/states/{state_id}/compact` returns a summary of one face's position
-over the state, in the face's own terms, stored under a `compaction_id`. In a
-state open to any face, name the face in `model`.
+`POST /v1/states/{state_id}/compact` writes one face's position over the state, in the
+face's own terms, and keeps it on the server under a `compaction_id`. The text itself is not
+returned. In a state open to any face, name the face in `model` (`@alice`).
 
 ```bash
 curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/compact \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model": "alice"}'
+  -d '{"model": "@alice"}'
 ```
 
 ```json
-{"object": "cause.compaction", "compaction_id": "fcmp_COMPACTION_ID",
- "session_id": "fs_STATE_ID", "cause": "…", "turns": 8,
+{"object": "compaction", "compaction_id": "fcmp_COMPACTION_ID",
+ "session_id": "fs_STATE_ID", "turns": 2,
  "created_at": "2026-10-28T15:49:02+00:00", "expires_at": "2026-11-27T15:49:02+00:00",
  "usage": {"input_tokens": 5210, "output_tokens": 640}}
 ```
 
-Add `"compaction": "<compaction_id>"` to a later request with the same face to have its cause
-read the summary. A compaction is held open like a cause: see [Speed](/guides/causes#speed).
+Add `"compaction": "<compaction_id>"` to a later chat or decision request with the same face to
+have its steering read the summary. A slow compaction is held open like a decision: see
+[Speed](/guides/decisions#speed).
 
 ## Close a state
 
@@ -339,10 +341,11 @@ expire.
 
 - Opening, reading, adding items to and closing a state are free. A turn costs what it
   costs without one.
-- **Compacting** is billed at the [cause rate](/guides/billing#current-rates) on the tokens it
-  reads and writes, `usage.input_tokens + usage.output_tokens`. On Connect and Pro it counts
-  against the cause [allowance](/guides/billing#allowances).
-- **Using** a compaction adds its text to what the cause reads, and is billed with that cause.
+- **Compacting** is billed at the compaction rate (`compaction` in
+  [`GET /v1/rates`](/guides/billing#current-rates)) on the tokens it reads and writes,
+  `usage.input_tokens + usage.output_tokens`. On Connect and Pro it counts against the plan's
+  [allowance](/guides/billing#allowances).
+- **Using** a compaction adds its text to what the steering reads, and is billed with it.
 
 Creating a state, adding items and compacting count against your plan's per-minute
 [rate limit](/errors#rate-limits).
@@ -381,4 +384,4 @@ states at once.
 | `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys and decision ids `` |
 | `402` | A turn or a compaction with no credit left | See [Billing](/guides/billing). |
 | `403` | The API key may not use the face | See [Errors](/errors). |
-| `429` | The per-minute rate limit, or the cause allowance is used and `api_fallback` is off | Names the limit. |
+| `429` | The per-minute rate limit, or the plan's allowance is used and `api_fallback` is off | Names the limit. |

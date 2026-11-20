@@ -5,7 +5,7 @@ description: Credits, subscription plans, allowances, and Stripe payments.
 
 # Billing
 
-Faces uses a credit-based billing system. Choices, decisions, causes and compiles are billed against your plan's allowance, then your credit balance, in real time. Each plan's allowances are shared across all your faces.
+Faces uses a credit-based billing system. Choices, chat, decisions and compiles are billed against your plan's allowance, then your credit balance, in real time. Each plan's allowances are shared across all your faces.
 
 ---
 
@@ -30,23 +30,25 @@ curl https://api.faces.sh/v1/billing/balance \
 
 ## Subscription plans
 
-| Plan | Price | Compile allowance | Choices and cause allowance | ChatGPT link |
+| Plan | Price | Compile allowance | Choices and steering allowance | ChatGPT link |
 |------|-------|-------------------|-----------------------------|--------------|
 | Free | $0 | none: pay as you go | none: pay as you go |  |
-| Connect | $17/mo | 500k source tokens/month | 25M tokens/month | interviews and style builds |
-| Pro | $49/mo | 1.5M source tokens/month | 75M tokens/month | interviews and style builds |
+| Connect | $17/mo | 500k source tokens/month | 25M tokens/month | interviews, style builds, Codex-eligible chat models |
+| Pro | $49/mo | 1.5M source tokens/month | 75M tokens/month | interviews, style builds, Codex-eligible chat models |
 
-A subscription is an **allowance**, not a fee per request: compiling, [choices](/guides/choices),
-[decisions](/guides/decisions) and a face's [cause](/guides/causes) are covered up to the plan's
-limits (see [Allowances](#allowances)). A decision model is paid as it goes on every plan, at the
-model's listed price plus 5%.
+A subscription is an **allowance**, not a fee per request: compiling, [choices](/guides/choices)
+and the **steering** of [chat](/guides/chat) and [decisions](/guides/decisions) (the upstream
+model, `@alice:maestro-1`) are covered up to the plan's limits (see [Allowances](#allowances)).
+The **downstream model** (the chat or decision model after the `/`) is paid as it goes on every
+plan, at the model's listed price plus 5%. See [Naming a model](/guides/models).
 
 On the **Free** plan everything is paid as it goes, from your credit balance, at the
 [pay-as-you-go rates](#pay-as-you-go-rates).
 
 On **Connect** and **Pro**, you can link your ChatGPT account via OAuth (device-code flow), and
 [interviews](/guides/compile#interview-threads) and [style builds](/guides/style) run on your
-ChatGPT plan instead of credits. See [Connect ChatGPT](/guides/oauth).
+ChatGPT plan instead of credits, and so does a Codex-eligible downstream model on chat at
+`/v1/responses`. See [Connect ChatGPT](/guides/oauth).
 
 ### Get current subscription
 
@@ -65,14 +67,17 @@ curl https://api.faces.sh/v1/billing/subscription \
   "is_active": true,
   "cancel_at_period_end": false,
   "allowances": {
-    "cause_5h":      {"limit": 4800000,  "used": 64227,   "remaining": 4735773,  "resets_at": null},
-    "cause_week":    {"limit": 18750000, "used": 940551,  "remaining": 17809449, "resets_at": "2026-11-21T10:53:13"},
-    "cause_month":   {"limit": 75000000, "used": 7191060, "remaining": 67808940, "resets_at": "2026-11-23T10:53:13"},
+    "upstream_5h":    {"limit": 4800000,  "used": 64227,   "remaining": 4735773,  "resets_at": null},
+    "upstream_week":  {"limit": 18750000, "used": 940551,  "remaining": 17809449, "resets_at": "2026-11-21T10:53:13"},
+    "upstream_month": {"limit": 75000000, "used": 7191060, "remaining": 67808940, "resets_at": "2026-11-23T10:53:13"},
     "compile_month": {"limit": 1500000,  "used": 771403,  "remaining": 728597,   "resets_at": "2026-11-23T10:53:13"}
   },
   "rates": {
-    "cause_usd_per_million_input_tokens": 0.75,
-    "cause_added_tokens": 1500,
+    "steering_usd_per_million_input_tokens": 0.42,
+    "steering_usd_per_call": 0.00042,
+    "choices_usd_per_million_input_tokens": 0.42,
+    "choices_usd_per_million_output_tokens": 1.0,
+    "compaction_usd_per_million_tokens": 0.75,
     "compile_usd_per_million_source_tokens": 16.0,
     "compile_rush_usd_per_million_source_tokens": 21.0,
     "model_markup": 0.05
@@ -82,18 +87,18 @@ curl https://api.faces.sh/v1/billing/subscription \
 
 `cancel_at_period_end` is `true` once the user has called the cancel endpoint and is still inside the paid period; use it to render "Connect ends on `current_period_end`" UI. The plan stays `"connect"` and `status` stays `"active"` until period end; only `cancel_at_period_end` flips.
 
-`allowances` is `null` on the Free plan. `rates` are the [pay-as-you-go rates](#pay-as-you-go-rates). To read them without a key, use [`GET /v1/rates`](#current-rates) rather than hard-coding them.
+`allowances` is `null` on the Free plan. `rates` are the [pay-as-you-go rates](#pay-as-you-go-rates): `maestro-1`'s for steering and choices, compacting, and compiling. To read them without a key, use [`GET /v1/rates`](#current-rates) rather than hard-coding them.
 
 ### Allowances
 
 | | Connect | Pro |
 |---|---|---|
 | Compile, per month | 500k source tokens | 1.5M source tokens |
-| Choices and causes, per month | 25M tokens | 75M tokens |
-| Choices and causes, per week | 6.25M | 18.75M |
-| Choices and causes, per 5 hours (rolling) | 1.6M | 4.8M |
+| Choices and steering, per month | 25M tokens | 75M tokens |
+| Choices and steering, per week | 6.25M | 18.75M |
+| Choices and steering, per 5 hours (rolling) | 1.6M | 4.8M |
 
-The choices and causes allowance is `cause_5h`, `cause_week` and `cause_month` in
+The choices and steering allowance is `upstream_5h`, `upstream_week` and `upstream_month` in
 [`GET /v1/billing/subscription`](#get-current-subscription).
 
 **What counts:**
@@ -102,10 +107,12 @@ The choices and causes allowance is `cause_5h`, `cause_week` and `cause_month` i
   decompile followed by a compile, counts again.
 - **Choices:** the call's `usage.input_tokens`, the input tokens it processed. On
   `maestro-1-flash` with a question, they count 10 times. See [Choices](/guides/choices#cost).
-- **Causes:** the tokens a face's `cause` read, **plus 1,500** per cause, on
-  [causes](/guides/causes) and [decisions](/guides/decisions).
-- **A decision model** is not part of the allowance: it is paid at the model's listed price
-  plus 5%.
+- **Steering** on [chat](/guides/chat) and [decisions](/guides/decisions): the input tokens
+  it processed, **plus 1,000** per call (the fixed fee, counted as the tokens it buys). On
+  `maestro-1-flash`, they count 10 times.
+- **Compacting** a [state](/guides/states#compact): the tokens it read and wrote.
+- **The downstream model** is not part of the allowance: it is paid at the model's listed
+  price plus 5%.
 
 **Resets:** the month is your subscription's 30-day window; weeks are 7-day blocks of it;
 the 5-hour window rolls.
@@ -131,13 +138,64 @@ curl https://api.faces.sh/v1/rates
 {
   "object": "rates",
   "currency": "usd",
-  "cause": {
-    "usd_per_million_tokens": 0.75,
-    "added_tokens_per_cause": 1500
+  "compaction": {
+    "usd_per_million_tokens": 0.75
   },
   "compile": {
     "usd_per_million_source_tokens": 16.0,
     "rush_usd_per_million_source_tokens": 21.0
+  },
+  "upstream": {
+    "maestro-1": {
+      "choices": {
+        "usd_per_million_input_tokens": 0.42,
+        "usd_per_million_output_tokens": 1.0,
+        "token_basis": "processed",
+        "endpoints": [
+          "/v1/choices"
+        ]
+      },
+      "steering": {
+        "usd_per_million_input_tokens": 0.42,
+        "usd_per_call": 0.00042,
+        "usd_per_million_output_tokens": 0.0,
+        "token_basis": "processed",
+        "endpoints": [
+          "/v1/decisions",
+          "/v1/systemone",
+          "/v1/chat/completions",
+          "/v1/responses",
+          "/v1/messages"
+        ]
+      }
+    },
+    "maestro-1-flash": {
+      "choices": {
+        "usd_per_million_input_tokens": 4.2,
+        "usd_per_million_output_tokens": 10.0,
+        "token_basis": "processed",
+        "endpoints": [
+          "/v1/choices"
+        ]
+      },
+      "steering": {
+        "usd_per_million_input_tokens": 4.2,
+        "usd_per_call": 0.0042,
+        "usd_per_million_output_tokens": 0.0,
+        "token_basis": "processed",
+        "endpoints": [
+          "/v1/decisions",
+          "/v1/systemone",
+          "/v1/chat/completions",
+          "/v1/responses",
+          "/v1/messages"
+        ]
+      }
+    }
+  },
+  "downstream": {
+    "markup": 0.05,
+    "prices": "/v1/models?kind=chat,decision"
   },
   "models": {
     "markup": 0.05,
@@ -151,18 +209,18 @@ curl https://api.faces.sh/v1/rates
     "connect": {
       "usd_per_month": 17,
       "allowances": {
-        "cause_tokens_per_5_hours": 1600000,
-        "cause_tokens_per_week": 6250000,
-        "cause_tokens_per_month": 25000000,
+        "upstream_tokens_per_5_hours": 1600000,
+        "upstream_tokens_per_week": 6250000,
+        "upstream_tokens_per_month": 25000000,
         "compile_source_tokens_per_month": 500000
       }
     },
     "pro": {
       "usd_per_month": 49,
       "allowances": {
-        "cause_tokens_per_5_hours": 4800000,
-        "cause_tokens_per_week": 18750000,
-        "cause_tokens_per_month": 75000000,
+        "upstream_tokens_per_5_hours": 4800000,
+        "upstream_tokens_per_week": 18750000,
+        "upstream_tokens_per_month": 75000000,
         "compile_source_tokens_per_month": 1500000
       }
     }
@@ -171,26 +229,22 @@ curl https://api.faces.sh/v1/rates
     "chat": {
       "max_message_tokens": 30000,
       "max_request_tokens": 62000,
-      "face_block_tokens": 4500,
-      "cause_reads_at_most_tokens": 30000,
-      "subscription_cause_reads_at_most_tokens": 10000
-    },
-    "causes": {
-      "max_message_tokens": 30000,
-      "max_request_tokens": 30000
+      "face_block_tokens": 5000,
+      "steering_reads_at_most_tokens": 30000,
+      "subscription_steering_reads_at_most_tokens": 10000
     },
     "decisions": {
       "jev-latest": {
-        "max_state_plus_longest_question_tokens": 30000,
-        "max_request_tokens": 62000
+        "max_state_plus_longest_question_tokens": 24600,
+        "max_request_tokens": 50200
       },
       "clef": {
-        "max_state_plus_longest_question_tokens": 30000,
-        "max_request_tokens": 63500
+        "max_state_plus_longest_question_tokens": 14000,
+        "max_request_tokens": 14000
       },
       "clef-flash": {
-        "max_state_plus_longest_question_tokens": 22500,
-        "max_request_tokens": 22500
+        "max_state_plus_longest_question_tokens": 14000,
+        "max_request_tokens": 14000
       },
       "face": {
         "max_state_plus_longest_question_tokens": 30000,
@@ -206,11 +260,18 @@ curl https://api.faces.sh/v1/rates
 }
 ```
 
-Per-model token prices, the choices models' included, are in
-[`GET /v1/models`](/guides/choices#list-the-models); `models.markup` is what is added to a
-decision model's price. `limits.chat` applies to the [retired](/guides/chat) chat endpoints.
-`limits.causes` is the size limit on
-[`/v1/causes`](/guides/causes) with `messages`. `limits.requests_per_minute` is the
+- `upstream` holds each maestro's prices: `choices`, on [`/v1/choices`](/guides/choices), per
+  million input and output tokens processed; and `steering`, on [chat](/guides/chat) and
+  [decisions](/guides/decisions), per million input tokens processed plus `usd_per_call`, with
+  no output charge.
+- `downstream.markup` is what is added to a downstream model's own price; per-model prices are
+  in [`GET /v1/models`](/guides/models#listing-the-models). `models` is the same, under its
+  earlier name.
+- `compaction` is the rate a [compaction](/guides/states#compact) is billed at.
+- `compile` is the compile rate, and `plans` each plan's price and allowances
+  (`upstream_tokens_*` is the choices and steering allowance).
+- `limits.chat` is the size limit on [chat](/guides/chat#limits-on-a-face) with a face, and
+  `limits.decisions` on [decisions](/guides/decisions#limits). `limits.requests_per_minute` is the
 per-account [rate limit](/errors#rate-limits) by plan. Your own usage against the allowances is in `GET /v1/billing/subscription`.
 
 ### Pay-as-you-go rates
@@ -221,10 +282,12 @@ On the Free plan, and past a subscription's limits with `api_fallback` on:
 |---|---|
 | [Choices](/guides/choices), `maestro-1` | **$0.42 per million input tokens** and **$1.00 per million output tokens**, as `usage` reports them |
 | [Choices](/guides/choices), `maestro-1-flash` with a question | **$4.20 per million input tokens** and **$10.00 per million output tokens**; without a question, as `maestro-1` |
-| A face's `cause` ([decisions](/guides/decisions), [causes](/guides/causes)) | **$0.75 per million tokens**: the tokens it read **plus 1,500** |
+| Steering [chat](/guides/chat) and [decisions](/guides/decisions), `maestro-1` | **$0.42 per million input tokens** plus **$0.00042 per call**; no output charge |
+| Steering, `maestro-1-flash` | **$4.20 per million input tokens** plus **$0.0042 per call** |
+| Compacting a [state](/guides/states#compact) | **$0.75 per million tokens** read and written |
 | Compile | **$16 per million source tokens** |
 | A [rush](/guides/compile#when-a-compile-starts) compile | **$21 per million source tokens** |
-| A decision model | the model's listed price **+ 5%** |
+| A downstream model (chat or decision) | the model's listed price **+ 5%** |
 
 ### Subscribe
 
@@ -400,13 +463,12 @@ Returns a breakdown of token usage and costs. Supports query parameters:
 - `api_key_id`, `model_username`, `model_iam_id`: filter to one value
 - `llm_model`: filter to one model id, as `group_by=llm_model` reports it
 
-Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`](/guides/choices#list-the-models) lists. A face's cause and a choices call appear as `faces-causes-latest`, and compiling as `faces-compile-latest`, a rush's extra charge included. Any id from the grouped response filters to that id's usage.
+Grouped by `llm_model`, each model appears once, under the id [`GET /v1/models`](/guides/models#listing-the-models) lists. Our own models' work (steering, choices and compacting) appears as `upstream`, and compiling as `faces-compile-latest`, a rush's extra charge included. Any id from the grouped response filters to that id's usage.
 
 Each row, and `totals`, adds up: `provider_cost_usd + markup_usd = total_cost_usd`, the
 amount deducted.
-`faces-causes-latest` and `faces-compile-latest` are priced by Faces with no markup: on
-their rows `provider_cost_usd` and `markup_usd` are `0`, and the whole charge is in
-`total_cost_usd`.
+Faces' own charges (choices, steering, compacting, compiling) carry no markup: on their rows
+`provider_cost_usd` and `markup_usd` are `0`, and the whole charge is in `total_cost_usd`.
 
 ## Invoices
 

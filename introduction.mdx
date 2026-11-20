@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: Faces are causal models. Compile one from an author's texts; prompt it, and it returns a cause that steers your AI.
+description: Faces are causal models. Compile one from an author's texts; prompt it, and it works out a cause that steers your AI.
 ---
 
 Large language models are general by design. They answer as no one in particular, and over a
@@ -9,7 +9,7 @@ managed to hold onto.
 
 Faces are **causal models**. A face distills the essence of a particular author from
 unstructured source texts, such as essays, blog posts, emails or interviews. When prompted, the
-face returns a **cause**: the principal *why* that would motivate that author's response in the
+face works out a **cause**: the principal *why* that would motivate that author's response in the
 given context. Causes are engineered to steer other AIs, so your agents keep a consistent,
 bespoke point of view however long they run. They become *someone* instead of no one.
 
@@ -17,13 +17,13 @@ bespoke point of view however long they run. They become *someone* instead of no
 flowchart LR
     texts["source texts<br/>essays, emails,<br/>interviews"] -- "compile" --> face
     prompt["your prompt"] --> face["a face"]
-    face -- "the cause" --> model["your model"]
+    face -- "steers" --> model["your model"]
     model --> answer["an answer, in<br/>that author's terms"]
 ```
 
 ## Causes, not reasons
 
-Causes are upstream of reasons. A reason is what you tell a police officer when they ask why
+Causes come before reasons. A reason is what you tell a police officer when they ask why
 you didn't stop at a red light; a cause is how you determined what to say.
 
 ## The APIs
@@ -31,13 +31,14 @@ you didn't stop at a red light; a cause is how you determined what to say.
 | API | Endpoint | Returns |
 | - | - | - |
 | [Choices](/guides/choices) | `/v1/choices` | the options the face would weigh, strongest first, or the question it would ask |
-| [Decisions](/guides/decisions) | `/v1/decisions`, `/v1/systemone` | typed `answers`, with a `cause` per question |
-| [Causes](/guides/causes) | `/v1/causes` | the `cause` alone |
+| [Chat](/guides/chat) | `/v1/chat/completions`, `/v1/responses`, `/v1/messages` | the reply of any chat model, steered by the face |
+| [Decisions](/guides/decisions) | `/v1/decisions`, `/v1/systemone` | typed `answers` from a decision model, steered by the face |
 
-[Choices](/guides/choices) is the way to run a face: describe a situation, in prose or as a
-[state](/guides/states) your agent keeps, and ask a question. Choices are
-[billed](/guides/billing) on the tokens each call processes; causes and decisions per input
-token. [Chat is retired](/guides/chat).
+Every one takes one `model`: our **upstream** model, a face and its maestro
+(`@alice:maestro-1`), and on chat and decisions the **downstream** model that writes the answer,
+after a `/` (`@alice:maestro-1/gpt-5.4`). See [Naming a model](/guides/models). The cause stays
+on the server: it steers the answer and is never returned. Every call is
+[billed](/guides/billing) on the tokens it processes.
 
 ## Compiled, not trained
 
@@ -46,7 +47,7 @@ training run, and a face is not tied to any one base model. Add a source and rec
 one and what it contributed goes with it.
 
 Compiled faces are **composable** and **comparable**. Combine faces with boolean algebra
-(`alice | bob`, `alice & bob`, `alice - bob`) into [synthetic faces](/guides/synthetic-faces),
+(`@alice | @bob`, `@alice & @bob`, `@alice - @bob`) into [synthetic faces](/guides/synthetic-faces),
 and [measure how alike](/concepts/centroids) any two faces are.
 
 ## Next steps
@@ -54,6 +55,8 @@ and [measure how alike](/concepts/centroids) any two faces are.
 * [Quickstart](/quickstart): an API key, a face, and its first choices in a few minutes.
 * [Faces](/guides/faces): create and manage faces.
 * [Compile](/guides/compile): turn source texts into a face.
+* [Naming a model](/guides/models): the upstream model over the downstream one.
 * [Choices](/guides/choices): ask a face what it would do.
+* [Chat](/guides/chat): chat with a face on any chat model.
 * [States](/guides/states): keep the situation your agent builds.
 * [Decisions](/guides/decisions): typed answers from a face.

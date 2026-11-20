@@ -27,10 +27,10 @@ the face a request names.
 
 ### Addressing it
 
-| | Path | Choices `view` |
+| | Path | In `model` |
 | --- | --- | --- |
-| Yours | `/v1/faces/me` | `@me` |
-| Anyone's | `/v1/faces/<username>:me` | `@<username>:me` |
+| Yours | `/v1/faces/me` | `@me:maestro-1` |
+| Anyone's | `/v1/faces/<username>:me` | `@<username>~me:maestro-1` |
 
 Someone else's `me` is readable only if they publish it or share it with you; the
 [avatar](#your-picture) is the exception. `/auth/me` and the face list carry no flag

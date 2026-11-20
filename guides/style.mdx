@@ -18,10 +18,9 @@ the face writes better in that medium. A face holds a separate style for each me
   and Pro, and off on Free. See [Automatic builds](#automatic-builds).
 </Note>
 
-A style was applied on the chat wrappers, and [chat is retired](/guides/chat). No route
-applies a style now: [choices](/guides/choices), [causes](/guides/causes) and
-[decisions](/guides/decisions) do not use it. Builds still run, and the styles they install
-stay on the face.
+[Chat](/guides/chat) applies a face's style on its own: for each request it reads what is
+being asked for and serves the face's style for that medium. [Choices](/guides/choices) and
+[decisions](/guides/decisions) do not use a style. See [Use it](#3-use-it).
 
 ---
 
@@ -282,8 +281,17 @@ built stay installed, and you [remove them](#5-remove-it) as you would any other
 
 ## 3. Use it
 
-A style was applied by sending `style` on a chat wrapper. [Chat is retired](/guides/chat), so
-no route applies a style now.
+There is nothing to send. On each [chat](/guides/chat) request we read what is being asked
+for, from the request itself and the reply before it:
+
+- when it is one of the media (an email, an essay, a text message, a lecture, and the rest),
+  the face's style for that medium is applied, if the face has one;
+- when it is none of them (a question, code, a calculation, ordinary chat, or a form not
+  listed), no style is applied, and the face answers in its own terms.
+
+`style`, `medium`, `kind` and `register` on a request are each a `422`: the medium is chosen for
+each request, never by the caller. A face with no style for the medium a request is in answers
+without one.
 
 ---
 
@@ -387,8 +395,7 @@ Every face carries `styles`, the media it has a built style for:
 {"alias": "alice", "styles": ["conversation", "lecture"]}
 ```
 
-An empty list means no style has been built. Read it before sending `style`, to offer only the
-media a face has.
+An empty list means no style has been built, and chat answers without one.
 
 ## What a build costs
 
@@ -397,7 +404,7 @@ account and is **not billed**. That holds for the default model and for any
 [Codex-eligible](/guides/oauth) model you name.
 
 **Every other build runs on `gpt-6-luna`, whatever `model` names, and is charged to
-credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/choices#list-the-models) plus
+credits** at `gpt-6-luna`'s price in [`GET /v1/models`](/guides/models#listing-the-models) plus
 the published markup. This applies on every plan, to automatic builds as well as manual ones:
 
 | plan | linked ChatGPT account | no link |
@@ -446,7 +453,7 @@ account or nothing, never charge":
   build again.
 - **On Free:** `422 oauth_only_unavailable`, and nothing is charged.
 
-Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/choices#list-the-models).
+Which models are Codex-eligible can change: read `codex_eligible` in [`GET /v1/models`](/guides/models#listing-the-models).
 
 ---
 

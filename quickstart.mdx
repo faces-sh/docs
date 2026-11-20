@@ -192,14 +192,15 @@ compile is still in hand, so keep polling and offer no action. See [Compile](/gu
 
 ## 6. Ask the face
 
-Describe a situation and ask a question. `view` is the face, as `@alias`:
+Describe a situation and ask a question. `model` is the face and its maestro,
+`@alice:maestro-1` (see [Naming a model](/guides/models)):
 
 ```bash
 curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@alice",
+    "model": "@alice:maestro-1",
     "state": "A startup in Berlin offers me a design lead role at a lower salary than I earn now.",
     "instructions": "Should I take the offer?"
   }'
@@ -208,9 +209,7 @@ curl -X POST https://api.faces.sh/v1/choices \
 ```json
 {
   "object": "choices",
-  "view": "@alice",
-  "model": "maestro-1",
-  "version": "23",
+  "model": "@alice:maestro-1",
   "choices": [
     {"name": "Take the offer", "description": "Berlin's freedom, meaningful work, and long-term impact outweigh salary. If the startup aligns with your values, it's worth the trade-off."},
     {"name": "Reject the offer", "description": "If the deadline feels rushed, it may signal poor collaboration. Trust your instincts about their process."},
@@ -223,6 +222,20 @@ curl -X POST https://api.faces.sh/v1/choices \
 The face proposes the options it would weigh, strongest first. Leave `instructions` out and it
 proposes the question it would ask instead. See [Choices](/guides/choices).
 
+To have the face answer in its own words on any chat model, name the model after a `/`:
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "@alice:maestro-1/gpt-5.4-mini",
+    "messages": [{"role": "user", "content": "Should I take the offer? One line."}]
+  }'
+```
+
+See [Chat](/guides/chat).
+
 <Tip>
   For a situation longer than 3,000 tokens, or one your agent keeps building, put it in a
   [state](/guides/states) and send its id as `state_id`.
@@ -234,6 +247,7 @@ proposes the question it would ask instead. See [Choices](/guides/choices).
 
 - [Add more faces and manage your library](/guides/faces)
 - [Ask a face what it would do](/guides/choices)
+- [Chat with a face on any model](/guides/chat)
 - [Understand compilation](/guides/compile)
 - [Build synthetic faces from boolean expressions](/guides/synthetic-faces)
 - [Manage billing and subscription plans](/guides/billing)

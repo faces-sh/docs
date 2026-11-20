@@ -78,7 +78,7 @@ curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@alice-and-bob",
+    "model": "@alice-and-bob:maestro-1",
     "state": "A team wants to ship a feature on Friday without tests because the demo is Monday.",
     "instructions": "What should the team do?"
   }'
@@ -114,22 +114,21 @@ curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@(alice | bob)",
+    "model": "(@alice | @bob):maestro-1",
     "state": "A student asks whether to switch from physics to philosophy in their final year.",
     "instructions": "What should the student do?"
   }'
 ```
 
-The same operators apply (`|`, `&`, `-`, `^`, parentheses). A composite works wherever a face does: [`/v1/choices`](/guides/choices) (as `view`), [`/v1/causes`](/guides/causes), [`/v1/decisions` and `/v1/systemone`](/guides/decisions).
+The same operators apply (`|`, `&`, `-`, `^`, parentheses), on faces written `@alias`, with the maestro once after the whole expression. A composite works wherever a face does: [`/v1/choices`](/guides/choices) (`(@alice | @bob):maestro-1`), [chat](/guides/chat) and [decisions](/guides/decisions) (`(@alice | @bob):maestro-1/<model>`). See [Naming a model](/guides/models#composites).
 
 Behaviorally a run-time composite is identical to a persisted one of the same operands, and there's no meaningful latency difference. Persist when you'll reuse it (and want to name it); compose on the fly for one-off blends.
 
 ### Rules
 
-- **Without `@model`**, `(alice | bob)` returns its cause alone, as any face does.
 - **Operands must be concrete faces**, same as persisted formulas. A bare alias is one of your own faces. Unknown/unowned operand → `404`; referencing a synthetic face as an operand → `422` (no nesting).
-- **`owner:alias` operands work in a run-time formula**, for a face you can read that someone else owns, such as a published one: `(alice | head:socrates)@model`. A face you cannot read → `404`. A persisted formula takes only your own faces by bare alias.
-- **Difference needs spaces:** write `alice - bob` (a dash *between* characters, like `news-bot`, is read as part of an alias). This matches persisted-formula behavior.
+- **Another account's face works in a run-time formula**, for a face you can read, such as a published one: `(@alice | @head~socrates):maestro-1/<model>`. A face you cannot read → `404`. A persisted formula takes only your own faces by bare alias.
+- **Difference:** a `-` right before `@` or `(` is the difference, with or without spaces (`@alice-@bob`, `@alice - @bob`); a dash inside a name (`@news-bot`) is part of the alias, and no alias starts or ends with one. A persisted formula (`face:create`) still writes `alice - bob`, with spaces and no `@`.
 
 ### Identity: the first operand
 

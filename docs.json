@@ -47,18 +47,19 @@
               "guides/system-faces",
               "guides/sharing",
               "guides/groups",
+              "guides/models",
               "guides/choices",
+              "guides/chat",
               "guides/decisions",
-              "guides/causes",
               "guides/states",
               "guides/compile",
               "guides/synthetic-faces",
               "guides/style",
               "guides/benchmark",
+              "guides/fidelity",
               "guides/billing",
               "guides/oauth",
-              "guides/chat",
-              "guides/fidelity"
+              "guides/causes"
             ]
           },
           {

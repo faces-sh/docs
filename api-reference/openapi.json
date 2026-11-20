@@ -1010,10 +1010,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (group1 OR group2).",
+              "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) \u2229 (group1 OR group2).",
               "title": "Group Id"
             },
-            "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) ∩ (group1 OR group2)."
+            "description": "Filter to faces that are members of ANY of these groups (repeatable for OR / union semantics). Combines with ?tag= as: (tag1 AND tag2) \u2229 (group1 OR group2)."
           },
           {
             "name": "include",
@@ -3026,10 +3026,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Only models of these kinds: one of `chat`, `image`, `transcription`, `decision`, `cause`, `compile`, or a comma-separated list of them (e.g. `chat,image`); `all` for every kind. Omitted: `chat` only.",
+              "description": "Only models of these kinds: one of `upstream` (the maestros), `chat`, `image`, `transcription`, `decision`, `compile`, or a comma-separated list of them (e.g. `upstream,chat`); `all` for every kind. Omitted: `upstream` and `chat`.",
               "title": "Kind"
             },
-            "description": "Only models of these kinds: one of `chat`, `image`, `transcription`, `decision`, `cause`, `compile`, or a comma-separated list of them (e.g. `chat,image`); `all` for every kind. Omitted: `chat` only."
+            "description": "Only models of these kinds: one of `upstream` (the maestros), `chat`, `image`, `transcription`, `decision`, `compile`, or a comma-separated list of them (e.g. `upstream,chat`); `all` for every kind. Omitted: `upstream` and `chat`."
           }
         ],
         "responses": {
@@ -8249,7 +8249,7 @@
           "Decisions"
         ],
         "summary": "Decisions",
-        "description": "OpenAI's Decisions API: `input` and an array of `questions`, answered in OpenAI's format.\n`model` is `face@decision-model`, a decision model alone, or a face alone (its cause alone,\nwith no questions). Jev's System One format is served at POST /v1/systemone.",
+        "description": "OpenAI's Decisions API: `input` and an array of `questions`, answered in OpenAI's format.\n`model` is `@face:maestro-1/<decision model>` (a composite `(@a | @b):maestro-1/<dm>`\ntoo, operators | & - ^; `@owner~face` for another account's face; `maestro-1-flash` for\nthe steering sooner, at 10x on the steering). No `cause` is returned. Jev's System One\nformat is served at POST /v1/systemone.",
         "operationId": "decisions_v1_decisions_post",
         "parameters": [
           {
@@ -8309,7 +8309,7 @@
           "Decisions"
         ],
         "summary": "Systemone",
-        "description": "TypeSafe Jev's System One API: `state` and `questions` keyed by id, answered in Jev's\nformat. `model` is `face@decision-model`, a decision model alone, or a face alone (its cause\nalone, with no questions). OpenAI's Decisions format is served at POST /v1/decisions.",
+        "description": "TypeSafe Jev's System One API: `state` and `questions` keyed by id, answered in Jev's\nformat. `model` is `@face:maestro-1/<decision model>` (a composite\n`(@a | @b):maestro-1/<dm>` too, operators | & - ^; `@owner~face` for another account's\nface; `maestro-1-flash` for the steering sooner, at 10x on the steering). No `cause` is\nreturned. OpenAI's Decisions format is served at POST /v1/decisions.",
         "operationId": "systemone_v1_systemone_post",
         "parameters": [
           {
@@ -8428,7 +8428,7 @@
           "Causes"
         ],
         "summary": "Causes",
-        "description": "The face's cause alone: of a chat turn (`messages`), of a situation (`state`), or one per\nquestion (`state` + `questions`, as on /v1/decisions). `model` is the face. Billed at the\ncause rate (GET /v1/rates `cause`); no other model runs.",
+        "description": "Refused, 422, nothing charged: the face's cause is never returned. To steer a\ndecision use POST /v1/decisions with `@face:maestro-1/<decision model>`; for the face's own\noptions, POST /v1/choices with `@face:maestro-1`.",
         "operationId": "causes_v1_causes_post",
         "parameters": [
           {
@@ -8488,7 +8488,7 @@
           "Sessions"
         ],
         "summary": "Create Session",
-        "description": "Open a session with a face (`model`). Turns that send its id as `session` are grouped\nin it, and `POST /v1/sessions/{id}/compact` writes the face's cause over all of them.",
+        "description": "Turns that send its id as `session` are grouped\nin it, and `POST /v1/sessions/{id}/compact` writes the face's cause over all of them.",
         "operationId": "create_session_v1_sessions_post",
         "parameters": [
           {
@@ -8715,7 +8715,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `model` (a face) is optional: without it the state takes any\nface. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`.\n`version` is 23 (the default) or 22.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
         "operationId": "create_conversation_v1_conversations_post",
         "deprecated": true,
         "parameters": [
@@ -8776,7 +8776,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `model` (a face) is optional: without it the state takes any\nface. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`.\n`version` is 23 (the default) or 22.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
         "operationId": "create_conversation_v1_states_post",
         "parameters": [
           {
@@ -9474,7 +9474,7 @@
           "Sessions"
         ],
         "summary": "Compact Conversation",
-        "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model`.",
+        "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model` (`@face`, as on POST /v1/states).",
         "operationId": "compact_conversation_v1_conversations__conversation_id__compact_post",
         "deprecated": true,
         "parameters": [
@@ -9544,7 +9544,7 @@
           "Sessions"
         ],
         "summary": "Compact Conversation",
-        "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model`.",
+        "description": "`POST /v1/sessions/{id}/compact` under the conversation's name. A conversation open to\nany face names the face to compact in `model` (`@face`, as on POST /v1/states).",
         "operationId": "compact_conversation_v1_states__conversation_id__compact_post",
         "parameters": [
           {
@@ -13916,6 +13916,31 @@
           },
           "usage": {
             "$ref": "#/components/schemas/DecisionUsage"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered By"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback"
           }
         },
         "type": "object",
@@ -14957,6 +14982,23 @@
             "title": "Kind",
             "default": "chat"
           },
+          "layer": {
+            "type": "string",
+            "title": "Layer",
+            "default": "downstream"
+          },
+          "steering": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steering"
+          },
           "codex_eligible": {
             "type": "boolean",
             "title": "Codex Eligible",
@@ -15245,6 +15287,31 @@
           },
           "usage": {
             "$ref": "#/components/schemas/DecisionUsage"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered By"
+          },
+          "fallback": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback"
           }
         },
         "type": "object",
@@ -16823,7 +16890,7 @@
         "type": "object"
       },
       "DecisionsRequest": {
-        "description": "TypeSafe Jev's System One request, at POST /v1/systemone. `model` is\n`face@decision-model`, a decision model alone (jev-latest, clef, clef-flash),\nor a face alone (its cause alone, no questions). With a face, `state` is the turn the face\nis responding to.",
+        "description": "TypeSafe Jev's System One request, at POST /v1/systemone. `model` is\n`@face:maestro-1/<decision model>` (a composite `(@a | @b):maestro-1/<dm>` too), a decision\nmodel alone (jev-latest, clef, clef-flash), or `@face:maestro-1` (the face's cause alone,\nno questions). With a face, `state` is the turn the face\nis responding to.",
         "properties": {
           "model": {
             "minLength": 1,
@@ -17030,7 +17097,7 @@
         "type": "object"
       },
       "OpenAIDecisionsRequest": {
-        "description": "OpenAI's Decisions request, at POST /v1/decisions. `model` is `face@decision-model`, a\ndecision model alone, or a face alone (its cause alone, no questions). An image anywhere\n(`input_image` in `input`, in a question's `instructions` or in a tool's output) is refused\nwith a 422 for now, on every decision model: it is never dropped.",
+        "description": "OpenAI's Decisions request, at POST /v1/decisions. `model` is\n`@face:maestro-1/<decision model>` (a composite `(@a | @b):maestro-1/<dm>` too), a decision\nmodel alone, or `@face:maestro-1` (the face's cause alone, no questions). An image anywhere\n(`input_image` in `input`, in a question's `instructions` or in a tool's output) is refused\nwith a 422 for now, on every decision model: it is never dropped.",
         "properties": {
           "model": {
             "title": "Model",

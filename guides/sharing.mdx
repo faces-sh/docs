@@ -65,7 +65,7 @@ curl -X PATCH "https://api.faces.sh/v1/faces/alice/share" \
 
 ## What sharing does and does not give away
 
-A shared face can be **asked** ([choices](/guides/choices), [decisions](/guides/decisions), [causes](/guides/causes)), and its card can be read: its name, description,
+A shared face can be **asked** ([choices](/guides/choices), [chat](/guides/chat), [decisions](/guides/decisions)), and its card can be read: its name, description,
 `basic_facts` and avatar, the same fields a [published face](/guides/faces#faces-you-do-not-own)
 shows. The people you share with can also put it in a [group](/guides/groups) of their own.
 
@@ -141,14 +141,14 @@ Published faces do not carry `via`; they carry `published: true` instead.
 
 ## Asking a face someone shared
 
-Use the `owner:alias` handle as the `view`, exactly as for a published face:
+Name it as `@owner~alias` in `model`, exactly as a published face:
 
 ```bash
 curl -X POST "https://api.faces.sh/v1/choices" \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@dana:alice",
+    "model": "@dana~alice:maestro-1",
     "state": "A client wants the launch moved up a month.",
     "instructions": "What do you make of this?"
   }'
