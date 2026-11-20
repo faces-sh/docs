@@ -76,8 +76,8 @@ model what it needs to answer as the face: the face's name, the identity details
 request, its [`profile_addendum`](/guides/faces#profile_addendum), and the face's style for what
 the request is.
 
-**The style is chosen for each request.** We read what is being asked for (an email, an essay, a
-text message, a social post, or none of these) and apply the face's built
+**The style is chosen for each request.** We read what is being asked for (one of the
+[media](/guides/media): an email, an essay, a speech, and so on; or none of these) and apply the face's built
 [style](/guides/style) for that medium when it has one. There is nothing to send: `style`,
 `medium`, `kind` and `register` on a request are each a `422`.
 

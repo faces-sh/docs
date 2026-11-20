@@ -115,28 +115,33 @@ with `type=document`, and `POST /v1/faces/{alias}/import` with `type=document` a
 
 ```json
 {
-  "detail": "medium is required: say what this document is, one of: academic paper, blog post, conversation, email, essay, lecture, legal document, other, social post, text message, thread reply"
+  "detail": "medium is required: say what this document is, one of: academic paper, blog post, conversation, cover letter, email, essay, fiction, journal entry, lecture, legal document, marketing copy, newsletter, other, poem, press release, report, review, script, sermon, social post, song lyrics, speech, technical documentation, text message, thread reply"
 }
 ```
 
 An edit can change a document's medium but not clear it: `PATCH` with `"medium": null` on a
 document that has one is a `422`.
 
-**Eleven values, spelled exactly:**
+**25 values, spelled exactly**, listed with what each covers by
+[`GET /v1/media`](/guides/media):
 
 ```
 email            text message     social post      essay
 academic paper   blog post        legal document   thread reply
-conversation     lecture          other
+conversation     lecture          speech           sermon
+journal entry    poem             song lyrics      cover letter
+press release    report           newsletter       fiction
+script           marketing copy   review           technical documentation
+other
 ```
 
-Nothing else is accepted. There are no synonyms: `transcript`, `keynote`, `sms`,
-`article` and `prose` are each a `422` naming all eleven, and the message tells you
-which word to send.
+Nothing else is accepted. There are no synonyms: `keynote`, `transcript`, `sms` and
+`article` are each a `422` naming all 25. A subcategory is not a medium: a keynote is a
+`speech`, an SMS a `text message`.
 
 ```json
 {
-  "detail": "body → medium: Value error, unknown medium 'transcript'; expected one of: academic paper, blog post, conversation, email, essay, lecture, legal document, other, social post, text message, thread reply"
+  "detail": "unknown medium 'keynote'; expected one of: academic paper, blog post, conversation, cover letter, email, essay, fiction, journal entry, lecture, legal document, marketing copy, newsletter, other, poem, press release, report, review, script, sermon, social post, song lyrics, speech, technical documentation, text message, thread reply"
 }
 ```
 
@@ -144,17 +149,15 @@ Only case and surrounding whitespace are forgiven: `"  ESSAY "` is `essay`.
 
 #### `other`: writing that is not one of the named forms
 
-Ten of the eleven values are a specific form. `other` is for the case none of them
-fit: a few paragraphs someone wrote that are not an email, an essay, a lecture or a
+Every other value is a specific form. `other` is for the case none of them fit: a few paragraphs someone wrote that are not an email, an essay, a lecture or a
 legal document. It is a declaration by the author, and it compiles.
 
 **What a source filed this way is read as:** prose with no form-specific
-conventions assumed. Its style is kept under `other` like any other medium, and
-applied only to requests that are also `other`.
+conventions assumed. Its style is kept under `other` like any other medium.
 
 <Note>
-  **`other` is never chosen for you.** To reach an `other` style, **declare
-  `medium: "other"` on the request**.
+  **`other` is never chosen for you.** Chat chooses a medium for each request and never
+  chooses `other`, so an `other` style is not applied on chat.
 </Note>
 
 `other` is not a home for forms this product does not yet name. If you need one of those, ask for

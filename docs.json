@@ -55,6 +55,7 @@
               "guides/compile",
               "guides/synthetic-faces",
               "guides/style",
+              "guides/media",
               "guides/benchmark",
               "guides/fidelity",
               "guides/billing",

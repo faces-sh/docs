@@ -5,9 +5,9 @@ description: Build a style for how a face uses language in different situations.
 
 # Style
 
-All source texts are labeled with a **medium**: the kind of writing they are. There
-are eleven: `email`, `text message`, `social post`, `essay`, `academic paper`, `blog post`,
-`legal document`, `thread reply`, `conversation`, `lecture` and `other`.
+All source texts are labeled with a **medium**: the kind of writing they are. There are 25,
+each with a description and the subcategories it covers, listed by
+[`GET /v1/media`](/guides/media): `email`, `essay`, `speech`, `journal entry`, `script` and so on.
 
 A **style build** reads a face's own writing in one medium and installs a style for it, so
 the face writes better in that medium. A face holds a separate style for each medium.
@@ -38,9 +38,7 @@ curl -X POST "https://api.faces.sh/v1/faces/alice/upload?type=document&medium=es
 
 Two fields, both declared and never inferred:
 
-- **`medium`**: what the file *is*. One of `email`, `text message`, `social post`,
-  `essay`, `academic paper`, `blog post`, `legal document`, `thread reply`,
-  `conversation`, `lecture`, `other`.
+- **`medium`**: what the file *is*: one of the names [`GET /v1/media`](/guides/media) lists.
 - **`perspective`**: `first-person` if the subject wrote it, `third-person` if it is
   *about* them. Third-person writing never contributes to a style. It defaults to
   `third-person` on `POST /v1/faces/{alias}/upload` and to `first-person` on
@@ -230,7 +228,7 @@ Counted in the face's own words, per medium:
 | medium | default |
 |--------|---------|
 | `essay`, `academic paper`, `blog post`, `legal document` | 10,000 |
-| everything else: `email`, `text message`, `social post`, `thread reply`, `conversation`, `lecture` | 15,000 |
+| every other medium | 15,000 |
 
 `other` is never built automatically. It still appears in `auto_style_thresholds`, but
 its value is not used.
@@ -284,7 +282,7 @@ built stay installed, and you [remove them](#5-remove-it) as you would any other
 There is nothing to send. On each [chat](/guides/chat) request we read what is being asked
 for, from the request itself and the reply before it:
 
-- when it is one of the media (an email, an essay, a text message, a lecture, and the rest),
+- when it is one of the [media](/guides/media) (an email, an essay, a speech, and the rest),
   the face's style for that medium is applied, if the face has one;
 - when it is none of them (a question, code, a calculation, ordinary chat, or a form not
   listed), no style is applied, and the face answers in its own terms.
