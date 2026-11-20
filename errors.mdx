@@ -38,9 +38,8 @@ to retry with, and the same request sent twice produces two different references
 | `403` | The credentials are valid, but this key may not use that face or model. | No. |
 | `404` | It does not exist, **or it exists and is not yours.** | No. |
 | `409` | It exists, and is locked or busy right now. | After a delay. |
-| `410` | The route is retired: the chat endpoints and fidelity runs. See [below](#410-chat-is-retired). Nothing is charged. | No: use [`/v1/choices`](/guides/choices). |
-| `422` | The request is the wrong shape: a missing field, a field the route does not accept, or a value outside a field's limits. | No: read the message. |
-| `429` | The account's [rate limit](#rate-limits) or an upstream provider's was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
+| `422` | The request is the wrong shape: a missing field, a field the route does not accept, a `model` not in the [naming grammar](/guides/models) (the message shows the form to use), or a value outside a field's limits. | No: read the message. |
+| `429` | The account's [rate limit](#rate-limits) or a downstream model's provider limit was hit, or one of your plan's [allowances](/guides/billing#allowances) is used up and `api_fallback` is off. The message names the limit and when it resets. | After `Retry-After`. Not before an allowance resets. |
 | `500` | Something broke and we do not yet know whose fault it is. | Once, then report it with the reference. |
 | `503` | Something we depend on was busy or failed: "Could not … Please try again. Reference …", often with `Retry-After`. The message says what failed and whether anything was charged. | **Yes**, after `Retry-After` seconds: this is the code that asks you to send it again. |
 
@@ -63,27 +62,25 @@ and models, or a face you may not act on.
 A wrong *current* password on `PATCH /auth/me` or `/auth/change-password` is also a
 `403`.
 
-### `410`: chat is retired
+### `422`: a `model` in an old form
 
-`POST /v1/chat/completions`, `POST /v1/responses`, `POST /v1/messages`, and starting or
-advancing a [fidelity run](/guides/fidelity), answer `410 Gone` before anything is read or
-charged. `detail` is the sentence; `error` is the shape OpenAI- and Anthropic-compatible
-clients read, with the code `chat_retired`:
+Every endpoint takes one `model`: the upstream model (a face and its maestro), and on chat and
+decisions the downstream model after a `/`. A plain model, `face@model`, a bare face,
+`owner:alias`, `view`, `style` and the other removed forms are each a `422` whose `detail` shows
+the form to use, and nothing is charged:
 
 ```json
-{
-  "detail": "Chat is retired. Use POST /v1/choices with model \"maestro-1\" and view \"@<alias>\" (and /v1/states for the situation). Nothing was charged.",
-  "error": {"type": "gone", "code": "chat_retired", "message": "Chat is retired. ..."}
-}
+{ "detail": "`face@model` is removed: write `@alice:maestro-1/gpt-5.4` (`@face:maestro/model`)" }
 ```
 
-See [Chat (retired)](/guides/chat).
+See [Naming a model](/guides/models#refusals). `POST /v1/causes` is removed and always answers
+`422`.
 
 ### Rate limits
 
 Every route that runs a model or a compile counts against one per-account, per-minute
-limit set by plan: `/v1/choices`, `/v1/decisions`, `/v1/systemone`, `/v1/causes`, and
-both compile `/make` routes. All of
+limit set by plan: `/v1/choices`, the chat endpoints, `/v1/decisions`, `/v1/systemone`,
+and both compile `/make` routes. All of
 an account's keys share the count. Read the limits from
 [`GET /v1/rates`](/guides/billing#current-rates) `limits.requests_per_minute` rather
 than hard-coding them. Billing routes have their own, smaller limits.

@@ -10,7 +10,10 @@ question, and the face proposes the options it would weigh, strongest first: eac
 name and a sentence, in the face's own terms. Leave the question out, and the face proposes
 the question it would ask instead.
 
-This is the way to run a face. [Chat is retired](/guides/chat).
+`model` is the upstream model alone: the face and its maestro, `@alice:maestro-1`. On this
+endpoint our model generates the answer, so no downstream model follows. See
+[Naming a model](/guides/models). To have a face steer another model's reply, use
+[chat](/guides/chat) or [decisions](/guides/decisions).
 
 ---
 
@@ -21,7 +24,7 @@ curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@head:socrates",
+    "model": "@head~socrates:maestro-1",
     "state": "I run a small bakery and a national chain just opened a store across the street.",
     "instructions": "What should I do this month?",
     "max_choices": 4
@@ -31,9 +34,7 @@ curl -X POST https://api.faces.sh/v1/choices \
 ```json
 {
   "object": "choices",
-  "view": "@head:socrates",
-  "model": "maestro-1",
-  "version": "23",
+  "model": "@head~socrates:maestro-1",
   "choices": [
     {"name": "Examine your bakery's excellence",
      "description": "Reflect on what makes your bakery uniquely good, then act to embody that truth in your work and offerings this month."}
@@ -51,8 +52,7 @@ a decision model, would choose between them.
 
 | Field | Meaning |
 |-------|---------|
-| `view` | **Required.** The face, as `@alias`: one of yours (`@alice`), one shared with you or a [system face](/guides/system-faces) (`@owner:alias`), or a [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) (`@(alice \| bob)`). |
-| `model` | `maestro-1` (the default) or `maestro-1-flash`, which answers sooner and is priced 10 times higher when a question is asked. See [Models](#models). |
+| `model` | **Required.** The face and its maestro: one of your faces (`@alice:maestro-1`), one shared with you or a [system face](/guides/system-faces) (`@head~socrates:maestro-1`), or a [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) (`(@alice \| @bob):maestro-1`). The maestro is `maestro-1`, or `maestro-1-flash`, which answers sooner and is priced 10 times higher when a question is asked. See [Maestros](#maestros). |
 | `instructions` | The question. Optional: without one, the face proposes the question it would ask (see [No question](#no-question)). |
 | `state` | The situation, in prose, at most **3,000 tokens**. For a longer situation, build a [state](/guides/states) and send `state_id`. |
 | `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is an addendum for this call only (see [A state as the situation](#a-state-as-the-situation)). |
@@ -65,9 +65,7 @@ A request needs a situation: `state`, `state_id`, or both.
 | Field | Meaning |
 |-------|---------|
 | `object` | `choices`, or `choices.question` when no question was asked. |
-| `view` | The face, as sent. |
-| `model` | The model that answered. |
-| `version` | The release that answered. |
+| `model` | The model, as sent. |
 | `choices` | The options, strongest first, each `{name, description}`. |
 | `question`, `alternatives` | Only when no question was asked: the question the face would ask, and other questions it would consider. |
 | `usage` | `input_tokens` and `output_tokens`: exactly what the request is billed for (see [Cost](#cost)). |
@@ -83,16 +81,14 @@ would ask about it.
 curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"view": "@head:socrates",
+  -d '{"model": "@head~socrates:maestro-1",
        "state": "I run a small bakery and a national chain just opened a store across the street."}'
 ```
 
 ```json
 {
   "object": "choices.question",
-  "view": "@head:socrates",
-  "model": "maestro-1",
-  "version": "23",
+  "model": "@head~socrates:maestro-1",
   "question": "What does your bakery do better than any other, and why does that matter to you?",
   "alternatives": [
     "How do you measure the worth of your work when faced with such competition?",
@@ -116,7 +112,7 @@ depends on, and the decisions already made. Then send the state's id.
 curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"view": "@head:socrates",
+  -d '{"model": "@head~socrates:maestro-1",
        "state_id": "fs_STATE_ID",
        "state": "The chain is selling bread at half our price.",
        "instructions": "What should the shop do about the chain?",
@@ -126,9 +122,7 @@ curl -X POST https://api.faces.sh/v1/choices \
 ```json
 {
   "object": "choices",
-  "view": "@head:socrates",
-  "model": "maestro-1",
-  "version": "23",
+  "model": "@head~socrates:maestro-1",
   "choices": [
     {"name": "Direct Answer", "description": "The shop should compare the chain's prices to its own costs and decide if it can compete or must adapt, as rent is already unaffordable."},
     {"name": "Virtue Over Profit", "description": "Focus on ethical pricing and quality, even if it means closing, for virtue is more valuable than financial survival."},
@@ -148,35 +142,16 @@ decision.
 
 ---
 
-## Models
+## Maestros
 
-| Model | What it is | Price per 1M input tokens | Price per 1M output tokens |
+| Maestro | What it is | Price per 1M input tokens | Price per 1M output tokens |
 |-------|------------|--------------------------|---------------------------|
-| `maestro-1` | The default. | $0.42 | $1.00 |
+| `maestro-1` | The standard. | $0.42 | $1.00 |
 | `maestro-1-flash` | The same face, answered sooner. | $4.20 with a question; $0.42 without | $10.00 with a question; $1.00 without |
 
 `maestro-1-flash` costs 10 times more only when a question is asked. Without `instructions`
-it runs as `maestro-1` does, and is billed the same.
-
-Both are listed, with their prices, by [`GET /v1/models`](#list-the-models):
-
-```bash
-curl "https://api.faces.sh/v1/models?kind=choices" \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-```json
-{"object": "list", "data": [
-  {"id": "maestro-1", "provider": "faces", "endpoint": "/v1/choices", "endpoints": ["/v1/choices"], "kind": "choices",
-   "input_cost_per_million_tokens": 0.42, "output_cost_per_million_tokens": 1.0,
-   "markup_applies": false, "token_basis": "processed"},
-  {"id": "maestro-1-flash", "provider": "faces", "endpoint": "/v1/choices", "endpoints": ["/v1/choices"], "kind": "choices",
-   "input_cost_per_million_tokens": 4.2, "output_cost_per_million_tokens": 10.0,
-   "markup_applies": false, "token_basis": "processed"}
-]}
-```
-
-Trimmed: each entry also has the fields listed under [List the models](#list-the-models).
+it runs as `maestro-1` does, and is billed the same. Both are listed, with their prices, by
+`GET /v1/models?kind=upstream`: see [Listing the models](/guides/models#listing-the-models).
 
 ---
 
@@ -188,7 +163,7 @@ Nothing else is added, and a refused call is not charged.
 - **Free plan:** `input_tokens` and `output_tokens` are paid from credits at the model's
   price.
 - **Connect and Pro:** `input_tokens` count against the plan's
-  [allowance](/guides/billing#allowances), the one causes and decisions use. On
+  [allowance](/guides/billing#allowances), the one chat and decisions use too. On
   `maestro-1-flash` with a question, they count 10 times. Past the allowance, with
   `api_fallback` on, input and output are paid from credits at the model's price; with it
   off, the call is refused with `429`.
@@ -204,7 +179,7 @@ Nothing else is added, and a refused call is not charged.
 | `402` | No credit left to pay for the call. See [Billing](/guides/billing). |
 | `404` | The face, or the state in `state_id`, does not exist or is not yours to use. |
 | `409` | The face has nothing compiled, or was compiled before the current release: recompile it. The message says which. |
-| `422` | The request cannot be read: `view` is missing or not `@alias`, `model` is not a choices model, there is no situation, `state` is over 3,000 tokens, or the state holds no premises or decisions yet. The message says which. |
+| `422` | The request cannot be read: `model` is not `@face:maestro-1` (the message shows the form to use; `view` and `version` are removed), there is no situation, `state` is over 3,000 tokens, or the state holds no premises or decisions yet. The message says which. |
 | `429` | The per-minute [rate limit](/errors#rate-limits), or the plan's allowance is used and `api_fallback` is off. The message names the limit. |
 | `503` | The face's options failed. Retry. |
 
@@ -214,70 +189,4 @@ Nothing else is added, and a refused call is not charged.
 
 ```json
 {"detail": "@alice has nothing compiled, so version 23 has nothing to propose from. Compile a source for it. Nothing was charged."}
-```
-
----
-
-## List the models
-
-```bash
-curl https://api.faces.sh/v1/models \
-  -H "Authorization: Bearer YOUR_API_KEY"
-```
-
-Returns every model you can name, **once each**, with its price. Each model object includes:
-
-| Field | Description |
-|-------|-------------|
-| `id` | The model's public id. |
-| `provider`, `owned_by` | Who made the model. The same value under two names; `owned_by` is OpenAI's. |
-| `endpoint` | The path that serves the model. |
-| `endpoints` | Every path that serves the model; `endpoint` is the first. |
-| `kind` | What the model is for: `choices` (`/v1/choices`), `decision` (`/v1/decisions` and `/v1/systemone`), `cause` (`/v1/causes`), `compile` (the compile `/make` routes), `chat`, `image` or `transcription`. |
-| `codex_eligible` | `true` if the model can run on a linked [ChatGPT plan](/guides/oauth), as a style build does. |
-| `input_cost_per_million_tokens`, `output_cost_per_million_tokens` | What a call costs. |
-| `added_tokens_per_request` | Tokens added to each request's input before pricing, or `null`. The cause model adds 1,500. |
-| `markup_applies` | `false` when the listed price is what is charged, with no markup on top. |
-| `token_basis` | What the price counts, when it is not the request: `processed` for the choices models (the tokens the call processed, as `usage` reports them), `source` for the compile model (the source text compiled). |
-| `included_tokens_per_month` | Tokens each plan includes per month before the price applies, by plan (`free`, `connect`, `pro`). |
-| `max_input_tokens` | The most input the model takes, in tokens, or `null` where it is not listed. |
-
-Without `kind`, only `chat` models are listed. `?kind=` takes one kind or a comma-separated
-list of `choices`, `decision`, `cause`, `compile`, `chat`, `image` and `transcription`;
-`?kind=all` lists every kind. An unknown value is a `422` that lists the accepted ones;
-`all` cannot be combined with another kind. The
-[decision models](/guides/decisions#model-forms) are listed with `?kind=decision`:
-
-```json
-{"object": "list", "data": [
-  {"id": "jev-latest",   "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.042, "output_cost_per_million_tokens": 0.0},
-  {"id": "clef",         "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.24,  "output_cost_per_million_tokens": 0.0},
-  {"id": "clef-flash",   "endpoint": "/v1/decisions", "endpoints": ["/v1/decisions", "/v1/systemone"], "kind": "decision", "input_cost_per_million_tokens": 0.038, "output_cost_per_million_tokens": 0.0}
-]}
-```
-
-The [cause model](/guides/causes) is listed with `?kind=cause`:
-
-```json
-{"object": "list", "data": [
-  {"id": "faces-causes-latest", "provider": "faces", "endpoint": "/v1/causes", "endpoints": ["/v1/causes"], "kind": "cause",
-   "input_cost_per_million_tokens": 0.75, "output_cost_per_million_tokens": 0.0,
-   "added_tokens_per_request": 1500, "markup_applies": false}
-]}
-```
-
-The compile model is listed with `?kind=compile`. It is priced per million source tokens
-compiled, after the plan's monthly allowance. `rush_input_cost_per_million_tokens` is the
-price of a [rush](/guides/compile#when-a-compile-starts) compile:
-
-```json
-{"object": "list", "data": [
-  {"id": "faces-compile-latest", "provider": "faces", "kind": "compile",
-   "endpoint": "/v1/compile/documents/{doc_id}/make",
-   "endpoints": ["/v1/compile/documents/{doc_id}/make", "/v1/compile/threads/{thread_id}/make"],
-   "input_cost_per_million_tokens": 16.0, "output_cost_per_million_tokens": 0.0,
-   "token_basis": "source", "markup_applies": false,
-   "included_tokens_per_month": {"free": 0, "connect": 500000, "pro": 1500000},
-   "rush_input_cost_per_million_tokens": 21.0}
-]}
 ```

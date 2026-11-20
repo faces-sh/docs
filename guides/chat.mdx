@@ -1,26 +1,263 @@
 ---
-title: Chat (retired)
-description: The chat endpoints are retired. Use /v1/choices to run a face.
+title: Chat
+description: Chat with a face on any chat model, through OpenAI- and Anthropic-compatible endpoints.
 ---
 
-# Chat (retired)
+# Chat
 
-Chat is retired. `POST /v1/chat/completions`, `POST /v1/responses` and `POST /v1/messages`
-answer `410 Gone` with the error code `chat_retired`, and nothing is charged:
+Name a face and the model that answers in one `model`, `@alice:maestro-1/gpt-5.4`, and the face
+steers the model's reply. The three chat endpoints are drop-in replacements for the OpenAI and
+Anthropic APIs: point a client at `https://api.faces.sh/v1` and change nothing else.
+
+| Endpoint | Format | Use it for |
+|----------|--------|------------|
+| `/v1/chat/completions` | OpenAI chat completions | Any chat model, in the OpenAI `chat.completion` shape |
+| `/v1/messages` | Anthropic messages | The Anthropic format |
+| `/v1/responses` | OpenAI responses | The Responses format, and a linked ChatGPT plan ([OAuth](/guides/oauth)) |
+
+<Tip>
+  **Each endpoint answers in its own format, whatever the model.** `/v1/chat/completions` always
+  returns the OpenAI `chat.completion` shape; it does not convert to the Responses or Messages
+  format. A model served only on `/v1/responses` (such as `gpt-5.2-pro`) answers with the error
+  that says to use `/v1/responses`.
+</Tip>
+
+---
+
+## Basic usage
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "@alice:maestro-1/gpt-5.4-mini",
+    "messages": [
+      {"role": "user", "content": "Ship Friday or Monday? One line."}
+    ]
+  }'
+```
 
 ```json
-HTTP 410
 {
-  "detail": "Chat is retired. Use POST /v1/choices with model \"maestro-1\" and view \"@<alias>\" (and /v1/states for the situation). Nothing was charged.",
-  "error": {"type": "gone", "code": "chat_retired", "message": "Chat is retired. Use POST /v1/choices with model \"maestro-1\" and view \"@<alias>\" (and /v1/states for the situation). Nothing was charged."}
+  "id": "chatcmpl-faces-a228ab7323d041378e0a72cf",
+  "object": "chat.completion",
+  "model": "@alice:maestro-1/gpt-5.4-mini",
+  "choices": [{"index": 0, "finish_reason": "stop",
+               "message": {"role": "assistant", "content": "Monday."}}],
+  "usage": {"prompt_tokens": 331, "completion_tokens": 5, "total_tokens": 336}
 }
 ```
 
-`error` is the shape OpenAI- and Anthropic-compatible clients read.
+Trimmed. `model` is the upstream model (`@alice:maestro-1`, the face and its maestro) over the
+downstream model that writes the reply (`gpt-5.4-mini`): see [Naming a model](/guides/models).
+The reply's `model` echoes it as sent. Each endpoint answers in its standard shape, and nothing
+else is added: the face's cause steers the reply and is never returned. Nor is a reasoning model's own
+reasoning on a face request: there is no reasoning field on `/v1/chat/completions`, no
+reasoning item on `/v1/responses`, and a `/v1/messages` thinking block comes back empty.
+`view`, `cause` and `causes` in a request are each a `422`.
 
-To run a face, use [`POST /v1/choices`](/guides/choices): describe the situation, ask a
-question, and the face proposes the options it would weigh. Keep a longer situation in a
-[state](/guides/states). For typed answers, use [decisions](/guides/decisions); for the
-face's cause alone, use [causes](/guides/causes).
+| `model` | Means |
+| - | - |
+| `@alice:maestro-1/gpt-5.4-mini` | your face `alice`, answering on `gpt-5.4-mini` |
+| `@head~socrates:maestro-1/claude-sonnet-4-6` | another account's face: a [system face](/guides/system-faces), or one [published or shared with you](/guides/sharing) |
+| `(@alice \| @bob):maestro-1/gpt-5.4` | a [composite](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) of faces |
+| `@alice:maestro-1-flash/gpt-5.4` | the same, steered sooner, at 10 times the steering price |
 
-[Fidelity runs](/guides/fidelity), which compared chat answers, are retired with it.
+Any model `GET /v1/models` lists as `kind: "chat"` can follow the `/`. A plain model with no
+face, and the upstream model alone, are each a `422` that shows the form to use.
+
+---
+
+## How a face steers
+
+For each turn, the face works out its cause from the conversation and gives the downstream
+model what it needs to answer as the face: the face's name, the identity details relevant to the
+request, its [`profile_addendum`](/guides/faces#profile_addendum), and the face's style for what
+the request is.
+
+**The style is chosen for each request.** We read what is being asked for (an email, an essay, a
+text message, a social post, or none of these) and apply the face's built
+[style](/guides/style) for that medium when it has one. There is nothing to send: `style`,
+`medium`, `kind` and `register` on a request are each a `422`.
+
+A face with **nothing compiled yet** still answers, from its name, its attributes and its
+`profile_addendum`. Compile a source to have it steer.
+
+---
+
+## Streaming
+
+Add `"stream": true` for SSE streaming:
+
+```bash
+curl -X POST https://api.faces.sh/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "@alice:maestro-1/gpt-5.4-mini",
+    "messages": [{"role": "user", "content": "Tell me about your childhood."}],
+    "stream": true
+  }'
+```
+
+The response is the endpoint's standard SSE stream: on `/v1/chat/completions`,
+`data: {"choices":[{"delta":{"content":"..."}}]}`.
+
+**A streamed request with a face waits for the steering, however long it takes.** Most turns
+start streaming within 20 seconds, and a refusal arrives with its real status code. If the
+steering takes longer, the response starts with `200` and the stream carries SSE comment lines
+(`: keep-alive`) until the answer begins. Comments are part of the SSE format and every SDK
+skips them. A refusal after that point arrives as one error event in the endpoint's own format,
+and still nothing is charged:
+
+| endpoint | late refusal |
+|----------|--------------|
+| `/v1/chat/completions` | `data: {"error": {"message": "...", "code": 503, "status": 503}}`, then `data: [DONE]` |
+| `/v1/responses` | `event: error` with `{"type": "error", "code": "503", "status": 503, "message": "..."}` |
+| `/v1/messages` | `event: error` with `{"type": "error", "error": {"type": "overloaded_error", "message": "...", "status": 503}}` |
+
+`status` is always the real HTTP status. When the refusal has a code of its own, such as
+`oauth_rejected`, `code` carries it (`error.code` on `/v1/messages`); otherwise `code` repeats
+the status.
+
+### Requests that are not streamed
+
+**A face request that is not streamed waits for its answer too.** Past about 40 seconds, the
+response starts with `200` and the header `X-Faces-Held: 1`, then whitespace, then the JSON.
+JSON parsers skip leading whitespace, so parse the body as usual. On a held response:
+
+- **A refusal comes back inside the `200`:** `detail`, plus an `error` object carrying the
+  real `status`. On `/v1/messages` it is Anthropic's `{"type": "error", "error": {...}}`.
+  When `X-Faces-Held` is set, check for `error` before reading the answer.
+- **`X-Faces-Cost-USD` is not sent.** The charge is in
+  [usage history](/guides/billing#usage-history).
+
+**Set your client timeout to at least 300 seconds** for any face request. A face request still
+working after 300 seconds, streamed or not, is stopped and answered `504`: retry. The OpenAI and
+Anthropic SDKs default to 600 seconds, which is enough.
+
+---
+
+## Multi-turn conversations
+
+Pass the full message history as you would with any OpenAI-compatible client:
+
+```json
+{
+  "model": "@alice:maestro-1/gpt-5.4-mini",
+  "messages": [
+    {"role": "user", "content": "What city do you live in?"},
+    {"role": "assistant", "content": "I live in Berlin."},
+    {"role": "user", "content": "What neighborhood?"}
+  ]
+}
+```
+
+To keep the situation on the server instead, open a [state](/guides/states) and send its id as
+`conversation` with each turn, with any new `premises`; then send only the new message. All three
+endpoints take `conversation`, `premises` and `compaction`.
+
+---
+
+## Limits on a face
+
+A request to a face takes at most **30,000 tokens per message**, on all three endpoints. Per
+request, it takes up to the downstream model's own input limit, less the most a face adds:
+**5,000 tokens**. `GET /v1/models` lists the figure for each model as
+`max_request_tokens_with_face`, and `GET /v1/rates` gives the most a face adds as
+`limits.chat.face_block_tokens`. A model with no listed limit takes at most **62,000 tokens per
+request**. The face's profile addendum is not part of that figure: leave room for it on a
+request near the limit. Over any limit is a `422` naming the size, before any work, so nothing
+is charged.
+
+**What the steering reads.** It reads the message it answers and the turns before it, most
+recent first, within **30,000 tokens** (`limits.chat.steering_reads_at_most_tokens` in
+`GET /v1/rates`); on Connect and Pro, within **10,000**
+(`subscription_steering_reads_at_most_tokens`). The message being answered is never cut. Earlier
+turns are not read and not billed.
+
+**Images aren't supported with a face.** A request to a face that includes an image is a `422`:
+"Images aren't supported with a face yet. Send the situation as text."
+
+---
+
+## Cost
+
+A chat turn has two parts, each priced on its own:
+
+- **The steering** (the upstream model): $0.42 per million input tokens it processes, plus a
+  fixed **$0.00042 per call** in place of output tokens, since the steering's output is never
+  returned. `maestro-1-flash` is 10 times both. On Connect and Pro it counts against the plan's
+  allowance first.
+- **The downstream model**: its listed price plus 5%, on every plan.
+
+See [Billing](/guides/billing) and the live figures at `GET /v1/rates`. A refused request is
+never charged.
+
+### Response headers
+
+| Header | Example | Description |
+|--------|---------|-------------|
+| `X-Faces-Provider` | `openai` | The lab that made the downstream model (the same value as `provider` in `/v1/models`) |
+| `X-Faces-Billing` | `oauth` or `credits` | `oauth`: your linked ChatGPT subscription paid for the downstream model. `credits`: billed to your balance. |
+| `X-Faces-Cost-USD` | `0.000274` | What this request cost. Not sent on a streamed or [held](#requests-that-are-not-streamed) response. |
+
+---
+
+## When a parameter did not take effect
+
+If your account is linked to a ChatGPT subscription, some requests are routed through it. That
+route does not accept every parameter, and we remove the ones it rejects: today
+`max_output_tokens` and `temperature`. When that happens the response says so:
+
+```
+x-faces-dropped-params: max_output_tokens,temperature
+```
+
+The header is absent when nothing was dropped.
+
+---
+
+## Using with the OpenAI SDK
+
+```python
+from openai import OpenAI
+
+client = OpenAI(api_key="YOUR_API_KEY", base_url="https://api.faces.sh/v1")
+
+response = client.chat.completions.create(
+    model="@alice:maestro-1/gpt-5.4-mini",
+    messages=[{"role": "user", "content": "What matters most to you?"}],
+)
+print(response.choices[0].message.content)
+```
+
+The Anthropic SDK works the same way on `/v1/messages`, with
+`model="@alice:maestro-1/claude-sonnet-4-6"`.
+
+---
+
+## Running on a linked ChatGPT plan
+
+On Connect and Pro, with a ChatGPT account [linked](/guides/oauth), a Codex-eligible downstream
+model (`codex_eligible: true` in [`/v1/models`](/guides/models#listing-the-models)) runs on the
+ChatGPT plan, **only at `POST /v1/responses`**. The steering is billed as usual. Calling a
+Codex-eligible model at `/v1/chat/completions` as a connected Connect or Pro user is a `409`,
+`use_responses_for_free_oauth`. Pass `"oauth_only": true` to fail rather than pay from credits
+when the ChatGPT route is unavailable; on Free it is a `422`, `oauth_only_unavailable`.
+
+---
+
+## Error codes
+
+| Code | Meaning |
+|------|---------|
+| `400` | The downstream model is not one we serve (`Unsupported model '...'`) |
+| `402` | Insufficient credits |
+| `404` | Face not found, or not yours to use |
+| `409` | `use_responses_for_free_oauth`: a Codex-eligible model at `/chat/completions` on a linked plan |
+| `422` | `model` is not `@face:maestro-1/<model>` (the `detail` shows the form to use); a removed parameter (`view`, `cause`, `causes`, `style`, `medium`, `kind`, `register`); an image; a request over its [size limits](#limits-on-a-face); `oauth_only` on Free |
+| `429` | The account's per-minute [rate limit](/errors#rate-limits), or the plan's [allowance](/guides/billing#allowances) is used and `api_fallback` is off. Nothing was charged |
+| `503` | The steering failed: retry. Nothing was charged |
+| `504` | A face request still working after 300 seconds was stopped: retry |

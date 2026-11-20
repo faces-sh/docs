@@ -1,0 +1,153 @@
+---
+title: Naming a model
+description: One model parameter on every endpoint. Our upstream model, a face and its maestro, over the downstream model that writes the answer.
+---
+
+# Naming a model
+
+Every endpoint takes one `model`. It names two things, written like a fraction:
+
+- the **upstream model** is ours: a face, or a composite of faces, with the **maestro** that
+  steers it (`@alice:maestro-1`);
+- the **downstream model** is the model that generates the answer, written after the first `/`
+  (`gpt-5.4`, `claude-sonnet-4-6`, `jev-latest`).
+
+```
+@alice:maestro-1/gpt-5.4
+└── upstream ──┘ └ downstream ┘
+```
+
+There are no other parameters for it, so the chat endpoints stay drop-in for OpenAI- and
+Anthropic-compatible clients: set the base URL to `https://api.faces.sh/v1` and put this in
+`model`.
+
+## Which endpoint takes which
+
+| `model` | Endpoint |
+| - | - |
+| `@alice:maestro-1` | [`/v1/choices`](/guides/choices): the upstream model generates the answer |
+| `@alice:maestro-1/gpt-5.4` | [`/v1/chat/completions`, `/v1/responses`, `/v1/messages`](/guides/chat) |
+| `@alice:maestro-1/jev-latest` | [`/v1/decisions`, `/v1/systemone`](/guides/decisions) |
+| `@alice` | [`/v1/states`](/guides/states) and `/v1/sessions`: a state names a face and runs no model |
+
+## The grammar
+
+```
+model     := upstream                     /v1/choices
+           | upstream "/" downstream      chat, decisions
+upstream  := faces ":" maestro
+faces     := face | "(" expression ")"
+face      := "@" alias                    one of your faces
+           | "@" owner "~" alias          another account's face
+maestro   := maestro-1 | maestro-1-flash
+```
+
+- **Your own face** is `@alias`. **Another account's** is `@owner~alias`: a
+  [system face](/guides/system-faces) (`@head~socrates`), or one
+  [published or shared with you](/guides/sharing).
+- **The maestro is required.** `maestro-1` is the standard one. `maestro-1-flash` steers sooner
+  and costs 10 times more, on the upstream part only (see [Billing](/guides/billing)).
+- **The downstream model is taken verbatim.** Everything after the first `/` is the model's id,
+  as [`GET /v1/models`](#listing-the-models) lists it, so a `/`, `:` or `@` inside it never
+  matters: `@alice:maestro-1/google/gemma-4-31b-it` works.
+- **A prefix is ours only when it ends with its maestro.** Without `:maestro-N` before the first
+  `/`, the whole value reads as a model id, and a model is not served without a face.
+
+## Composites
+
+Combine faces with boolean set algebra, in parentheses, and write the maestro once after the
+whole expression:
+
+| Operator | Meaning | Example |
+| - | - | - |
+| `\|` | union | `(@alice \| @bob):maestro-1/gpt-5.4` |
+| `&` | intersection | `(@alice & @bob):maestro-1` |
+| `-` | difference | `(@alice - @bob):maestro-1/gpt-5.4` |
+| `^` | symmetric difference | `(@alice ^ @bob):maestro-1` |
+
+Parentheses group and nest: `((@a | @b) - @c):maestro-1`. Faces of other accounts mix with your
+own: `(@dana~alice | @bob):maestro-1/gpt-5.4`. Spaces around operators are optional.
+
+**Hyphens.** An alias may contain a hyphen (`@sun-tzu`) but never starts or ends with one. So a
+`-` right before `@` or `(` is the difference operator, and any other `-` is part of a name:
+`@levin-big-@tyson` and `(@levin-big - @tyson)` both mean levin-big minus tyson.
+
+See [Synthetic faces](/guides/synthetic-faces#run-time-composites-compose-on-the-fly) for what a
+composite is.
+
+## Names
+
+An owner or alias never contains `~ @ / : | & ^ ( )` or whitespace, and never starts or ends with
+`-`. Creating a face with such an alias is a `400`.
+
+## Refusals
+
+Every old form is refused with a `422` whose `detail` shows the form to use. Nothing is charged.
+
+| Sent | Answer |
+| - | - |
+| `"gpt-5.4"` (a model, no face) | `422`: add a face, `@socrates:maestro-1/gpt-5.4` |
+| `"@alice:maestro-1"` on chat or decisions | `422`: name the model that answers after the maestro |
+| `"@alice:maestro-1/gpt-5.4"` on `/v1/choices` | `422`: send the upstream model alone |
+| `"alice@gpt-5.4"` | `422`: `face@model` is removed, write `@alice:maestro-1/gpt-5.4` |
+| `"alice"`, `"@alice/gpt-5.4"` | `422`: name the face and its maestro |
+| `"@alice:maestro-2/gpt-5.4"` | `422`: not a maestro, with the maestros listed |
+| `"head:socrates"` | `422`: write another account's face as `@head~socrates` |
+| `view`, `cause`, `causes` (chat, decisions) | `422`: removed |
+| `view`, `version` (choices) | `422`: the face goes in `model` |
+| `style`, `medium`, `kind`, `register` | `422`: the face's style is chosen for each request |
+| an unknown downstream model | `400`: `Unsupported model '...'. See /v1/models for available models.` |
+| a face you cannot use | `404` |
+
+```json
+{"detail": "`face@model` is removed: write `@alice:maestro-1/gpt-5.4` (`@face:maestro/model`)"}
+```
+
+## Listing the models
+
+```bash
+curl https://api.faces.sh/v1/models
+```
+
+`GET /v1/models` lists every model once, with its price. Without `?kind=` it lists the maestros
+and the chat models. Each entry carries:
+
+| Field | Description |
+| - | - |
+| `id` | The id to write in `model`: `maestro-1`, or a downstream model's (`gpt-5.4`). |
+| `layer` | `upstream` for the maestros, `downstream` for every model that generates an answer. |
+| `kind` | `upstream` (a maestro), `chat`, `decision`, `compile`, `image` or `transcription`. |
+| `endpoint`, `endpoints` | The paths that serve the model; `endpoint` is the first. |
+| `provider`, `owned_by` | The lab that made the model (`faces` for the maestros). |
+| `input_cost_per_million_tokens`, `output_cost_per_million_tokens` | The price. A maestro's are its `/v1/choices` price. |
+| `steering` | A maestro's price for steering a downstream model on chat and decisions: `input_cost_per_million_tokens`, `cost_per_call_usd` (a fixed fee per call), `output_cost_per_million_tokens` (`0`), `endpoints`. `null` on other models. |
+| `token_basis` | `processed` for the maestros (every token the run processed), `source` for the compile model. |
+| `codex_eligible` | `true` when the model can run on a linked ChatGPT plan at `/v1/responses` (see [OAuth](/guides/oauth)). |
+| `max_input_tokens` | The most input the model takes, or `null`. |
+| `max_request_tokens_with_face` | The most a chat request to a face on this model may carry. See [Limits](/guides/chat#limits-on-a-face). |
+
+`?kind=` takes one kind or a comma-separated list (`?kind=upstream,decision`); `?kind=all` lists
+every kind. An unknown kind is a `422` that lists the accepted ones.
+
+```bash
+curl "https://api.faces.sh/v1/models?kind=upstream"
+```
+
+```json
+{"object": "list", "data": [
+  {"id": "maestro-1", "provider": "faces", "kind": "upstream", "layer": "upstream",
+   "endpoint": "/v1/choices",
+   "endpoints": ["/v1/choices", "/v1/decisions", "/v1/systemone", "/v1/chat/completions", "/v1/responses", "/v1/messages"],
+   "input_cost_per_million_tokens": 0.42, "output_cost_per_million_tokens": 1.0, "token_basis": "processed",
+   "markup_applies": false,
+   "steering": {"endpoints": ["/v1/decisions", "/v1/systemone", "/v1/chat/completions", "/v1/responses", "/v1/messages"],
+                "input_cost_per_million_tokens": 0.42, "cost_per_call_usd": 0.00042,
+                "output_cost_per_million_tokens": 0.0, "token_basis": "processed"}},
+  {"id": "maestro-1-flash", "provider": "faces", "kind": "upstream", "layer": "upstream",
+   "input_cost_per_million_tokens": 4.2, "output_cost_per_million_tokens": 10.0,
+   "steering": {"input_cost_per_million_tokens": 4.2, "cost_per_call_usd": 0.0042, "output_cost_per_million_tokens": 0.0}}
+]}
+```
+
+Trimmed: each entry also has the fields in the table above. Drive a model picker from this list
+rather than a hardcoded one, and offer only `kind: "chat"` models after the `/` on chat.

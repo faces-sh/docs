@@ -1,6 +1,6 @@
 ---
 title: Connect ChatGPT
-description: On Connect and Pro, link your ChatGPT account so interviews and style builds run on your ChatGPT plan instead of credits.
+description: On Connect and Pro, link your ChatGPT account so interviews, style builds and Codex-eligible chat models run on your ChatGPT plan instead of credits.
 ---
 
 # Connect ChatGPT
@@ -8,15 +8,12 @@ description: On Connect and Pro, link your ChatGPT account so interviews and sty
 On the **Connect** and **Pro** plans, you can link a ChatGPT account. [Interviews](#interviews),
 [style builds](/guides/style) and the face's side of a [benchmark](/guides/benchmark#price)
 then run on your ChatGPT plan where the model allows it, so that work costs you no API credits.
+So does a Codex-eligible downstream model on [chat](/guides/chat#running-on-a-linked-chatgpt-plan)
+at `/v1/responses` (`codex_eligible: true` in [`GET /v1/models`](/guides/models#listing-the-models)).
 
-[Choices](/guides/choices), [decisions](/guides/decisions) and [causes](/guides/causes) are
-not affected: they are billed from your plan's [allowance](/guides/billing#allowances), then
-from credits, whether or not ChatGPT is linked.
-
-<Note>
-  Linking ChatGPT once routed chat models through your ChatGPT plan. [Chat is
-  retired](/guides/chat), and so is that route.
-</Note>
+[Choices](/guides/choices), and the steering of [chat](/guides/chat) and
+[decisions](/guides/decisions), are not affected: they are billed from your plan's
+[allowance](/guides/billing#allowances), then from credits, whether or not ChatGPT is linked.
 
 ---
 
@@ -174,7 +171,7 @@ HTTP 422
   "detail": {
     "error": "oauth_rejected",
     "detail": "...",
-    "upstream_status": 400,
+    "provider_status": 400,
     "fallback_available": true
   }
 }
@@ -182,7 +179,7 @@ HTTP 422
 
 | `error` | When | What to do |
 |---------|------|------------|
-| `oauth_rejected` | ChatGPT refused the request, or no account is linked | `upstream_status` carries OpenAI's status. |
+| `oauth_rejected` | ChatGPT refused the request, or no account is linked | `provider_status` carries OpenAI's status. |
 | `model_not_supported` | The model is not available on this ChatGPT plan (`400`) | Pick another model. |
 | `oauth_workspace_residency` | The workspace's data-residency setting does not allow this (`401`) | No client-side fix. |
 | `oauth_rate_limited` | The ChatGPT plan's usage limit is reached (`429`) | Try later. When OpenAI says when it resets, the body adds `retry_after_seconds` and `resets_at` (unix time) and the response carries `Retry-After`. |
@@ -191,7 +188,7 @@ HTTP 422
 | Field | Description |
 |-------|-------------|
 | `detail` | A readable explanation. |
-| `upstream_status` | OpenAI's HTTP status. `null` when the request was refused before reaching OpenAI; absent on `oauth_incomplete`. |
+| `provider_status` | OpenAI's HTTP status. `null` when the request was refused before reaching OpenAI; absent on `oauth_incomplete`. |
 | `fallback_available` | `true` if your credit balance could pay for a retry with `api_fallback` on. |
 
 #### A reply that stops partway

@@ -5,18 +5,18 @@ description: Ready-to-use faces provided by Faces that any account can use.
 
 # System Faces
 
-System faces are a curated set of compiled faces that **Faces provides for everyone**: you can use them straight away without creating or compiling a face of your own. They live under the platform `head` account and are addressed with the `head:` prefix, e.g. `head:socrates`.
+System faces are a curated set of compiled faces that **Faces provides for everyone**: you can use them straight away without creating or compiling a face of your own. They live under the platform `head` account. In a `model` they are written `@head~socrates`; on the face routes, `head:socrates`.
 
 You pay for a call exactly as you would for your own faces, from your allowance or credits. There is no charge to *use* a system face beyond that.
 
 <Note>
   **System faces may change over time without notice.** Faces curates this set; faces can be added, updated, recompiled, or removed at any time. Don't hardcode the list; fetch it from the API (see [Discover system faces](#discover-system-faces)).
 
-  Don't hardcode the owner account either. It is `head` today and will not always be. Read `owned_by` from the listing and build the handle from it rather than assembling `head:<alias>` yourself.
+  Don't hardcode the owner account either. It is `head` today and will not always be. Read `owned_by` from the listing and build the handle from it rather than assembling `@head~<alias>` yourself.
 </Note>
 
 <Note>
-  **Any owner can publish a face**, and can share one with named accounts instead. The `owner:alias` addressing described here is the same in every case; see [Sharing Faces](/guides/sharing).
+  **Any owner can publish a face**, and can share one with named accounts instead. The addressing described here is the same in every case; see [Sharing Faces](/guides/sharing).
 </Note>
 
 ---
@@ -53,21 +53,22 @@ See [List faces](/guides/faces#list-faces) for the full `include_published` / `f
 
 ## Ask a system face
 
-Address a system face by its handle as the `view`:
+Name a system face as `@owner~alias` in `model`:
 
 ```bash
 curl -X POST https://api.faces.sh/v1/choices \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "view": "@head:socrates",
+    "model": "@head~socrates:maestro-1",
     "state": "I run a small bakery and a national chain just opened a store across the street.",
     "instructions": "What should I do this month?"
   }'
 ```
 
-The handle works the same on [choices](/guides/choices), [decisions](/guides/decisions) and
-[causes](/guides/causes), and behaves just like one of your own faces.
+It works the same on [chat](/guides/chat) (`@head~socrates:maestro-1/gpt-5.4`) and
+[decisions](/guides/decisions) (`@head~socrates:maestro-1/jev-latest`), and behaves just like
+one of your own faces. See [Naming a model](/guides/models).
 
 ---
 
@@ -75,7 +76,7 @@ The handle works the same on [choices](/guides/choices), [decisions](/guides/dec
 
 | What | Who pays |
 | --- | --- |
-| Asking a system face (choices, decisions, causes) | **The calling account**: your allowance, then credits, at the same rates as your own faces. |
+| Asking a system face (choices, chat, decisions) | **The calling account**: your allowance, then credits, at the same rates as your own faces. |
 | Compiling / maintaining the system face | Faces. You never pay to keep a system face compiled. |
 
 Your plan's allowance works the same way for system faces as for your own; it keys off *your* account, not the system face.

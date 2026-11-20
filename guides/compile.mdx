@@ -702,7 +702,7 @@ edit counts again):
 Both rates are published: `compile.usd_per_million_source_tokens` and
 `compile.rush_usd_per_million_source_tokens` in [`GET /v1/rates`](/guides/billing#current-rates),
 and `input_cost_per_million_tokens` and `rush_input_cost_per_million_tokens` on
-`faces-compile-latest` in [`GET /v1/models?kind=compile`](/guides/choices#list-the-models).
+`faces-compile-latest` in [`GET /v1/models?kind=compile`](/guides/models#listing-the-models).
 
 See [Allowances](/guides/billing#allowances).
 
@@ -718,4 +718,4 @@ For batch imports, consider using the [import endpoint](/guides/faces#import) or
 
 ## Compile vs. choices tokens
 
-The compile allowance counts the source tokens each compile reads. [Choices](/guides/choices), decisions and causes count against a separate allowance; see [Allowances](/guides/billing#allowances).
+The compile allowance counts the source tokens each compile reads. [Choices](/guides/choices) and the steering of chat and decisions count against a separate allowance; see [Allowances](/guides/billing#allowances).
