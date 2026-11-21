@@ -77,9 +77,10 @@ Add `"conversation": "<id>"` to a request with a face on [chat](/guides/chat)
 The face reads the state so far, then your request, and the turn is added to the state. Each
 turn is billed as it would be without a state. See [Decisions in a state](#decisions-in-a-state).
 
-[Choices](/guides/choices) reads a state, with `state_id`, and does not add to it. Prose sent
-beside the `state_id` is read for that one call and never saved: write anything that should
-persist as premises with [Add items](#add-items).
+[Choices](/guides/choices) reads a state, with `state_id`. With a question, it adds the options
+it proposes to the state (see [Options in a state](#options-in-a-state)). Prose sent beside the
+`state_id` is read for that one call and never saved: write anything that should persist as
+premises with [Add items](#add-items).
 
 ## Items
 
@@ -150,7 +151,7 @@ the first time a key is used, and kept after that.
 | `value` | Its value: any JSON. |
 | `description` | What it means, in plain words. Required the first time the key is used. |
 | `status` | How sure your agent is of it: `stated` (the default), `verified`, `assumed`, `unresolved` or `invalidated`. |
-| `depends_on` | The premise keys and decision ids it rests on: a list of at most 200, each already in the state or sent in the same request. A premise cannot depend on itself. |
+| `depends_on` | The premise keys, decision ids and option ids it rests on: a list of at most 200, each already in the state or sent in the same request. A premise cannot depend on itself. See [Options in a state](#options-in-a-state). |
 | `role` | `wanted` marks the premise as a goal: the outcome the state is working toward. Optional. |
 | `origin` | Who set the premise: `human`, `agent`, `tool` or `web`. Optional. Use it to keep the user's goals and rules apart from your agent's own findings. |
 
@@ -215,6 +216,22 @@ curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
 
 A decision item carries `status` (`decided` or `invalidated`) and `because` the same way.
 
+## Options in a state
+
+Ask [choices](/guides/choices) a question with `state_id` and the options it proposes are added
+to the state as one item. The response gives each option an `id` (`opt_...`) and the list its
+own, `choices_item` (`cho_...`).
+
+A premise or a decision names an option in its `depends_on`, like a premise key or a decision
+id. A list's `choices_item` names all of its options. A decision that rests on an option,
+directly or through the premises and decisions it rests on, is shown why the face proposed it.
+Options have no status: resting on one never invalidates anything.
+
+```json
+{"premises": [{"key": "plan", "value": "Hold the price and sell on quality",
+               "description": "the way the shop chose", "depends_on": ["opt_OPTION_ID"]}]}
+```
+
 ## Add items
 
 `POST /v1/states/{state_id}/items` adds your messages and premises, at most 20
@@ -251,8 +268,8 @@ Your agent decides which to revisit. Nothing is decided again for you.
 
 ## Decisions in a state
 
-A decision request in a state may send `depends_on`: the premise keys and decision ids the
-decision rests on, at most 200, each already in the state or sent as a premise in the same
+A decision request in a state may send `depends_on`: the premise keys, decision ids and option
+ids the decision rests on, at most 200, each already in the state or sent as a premise in the same
 request. The decision is shown those premises and decisions, and is invalidated when one of
 them is. Without `depends_on`, it rests on every premise in force when it is made.
 
@@ -390,8 +407,8 @@ states at once.
 | `422` | Compacting a state open to any face, without `model` | `` this conversation takes any face: name the one to compact in `model` `` |
 | `422` | A premise `status` that is not one of the five | `` a premise `status` is one of stated, verified, assumed, unresolved, invalidated ('maybe') `` |
 | `422` | A premise that depends on itself | `` premise 'rent' cannot depend on itself `` |
-| `422` | `depends_on` naming something not in the state or the request | `` premise 'can_afford_rent': `depends_on` names no premise or decision in this conversation: rent `` |
-| `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys and decision ids `` |
+| `422` | `depends_on` naming something not in the state or the request | `` premise 'can_afford_rent': `depends_on` names no premise or decision (or choices option) in this conversation: rent `` |
+| `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys, decision ids and choices ids `` |
 | `402` | A turn or a compaction with no credit left | See [Billing](/guides/billing). |
 | `403` | The API key may not use the face | See [Errors](/errors). |
 | `429` | The per-minute rate limit, or the plan's allowance is used and `api_fallback` is off | Names the limit. |
