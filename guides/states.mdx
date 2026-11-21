@@ -156,29 +156,62 @@ key in `depends_on` exactly as you wrote it.
 | `value` | Its value: any JSON. |
 | `description` | What it means, in plain words. Required the first time the key is used. |
 | `status` | How sure your agent is of it: `stated` (the default), `verified`, `assumed`, `unresolved` or `invalidated`. |
-| `depends_on` | The premise keys, decision ids and option ids it rests on: a list of at most 200, each already in the state or sent in the same request. A premise cannot depend on itself. See [Options in a state](#options-in-a-state). |
-| `role` | `wanted` marks the premise as a goal: the outcome the state is working toward. Optional. |
+| `depends_on` | What it rests on: premise keys, decision ids and option ids, at most 200, each already in the state or sent in the same request. Each entry is a plain id or an edge with a kind and a weight (see [And, or and weights](#and-or-and-weights)). A premise cannot depend on itself. See [Options in a state](#options-in-a-state). |
+| `role` | `wanted` marks the premise as a goal: the outcome the state is working toward. `test` marks a check that must pass. Optional. |
+| `touches` | What working on it touches: a list of at most 20 resources in plain text, such as a repository or a file. Two premises that touch the same resource are not given to two agents at once (see [Several agents](#several-agents)). Optional. |
 | `origin` | Who set the premise: `human`, `agent`, `tool` or `web`. Optional. Use it to keep the user's goals and rules apart from your agent's own findings. |
 
 Send premises with a turn as `premises`, a list of these, or add them on their own (see
 [Add items](#add-items)).
 
 A newer reading of a key replaces it from that point on. A newer reading without
-`depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role` or
-`origin` keeps the earlier one too; `null` clears it. Any other value for either is a `422`.
-`role` and `origin` are kept with the state and returned when you read it; they do not
-change what a face is shown. A `wanted` premise marks an outcome your agent works toward, for
-it to know when to stop. To have a face read a premise, name it in the call's `depends_on`
+`depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role`,
+`origin` or `touches` keeps the earlier one too; `null` clears it. Any other value is a `422`.
+`role`, `origin` and `touches` are kept with the state and returned when you read it; they do
+not change what a face is shown. A `wanted` premise marks an outcome your agent works toward,
+for it to know when to stop. To have a face read a premise, name it in the call's `depends_on`
 (see [What a face is shown](#what-a-face-is-shown)). Every decision
 is made with the premises in force when it was made, and the state keeps each reading, so you can always see what a
 decision was made under.
 
+## And, or and weights
+
+`A depends_on B` means B must be true for A to be true. Each entry of a premise's
+`depends_on` is a plain id or an edge:
+
+```json
+{"key": "handle bad input", "value": "malformed files are handled", "depends_on": [
+  {"id": "reject malformed files", "kind": "or", "p": 0.7},
+  {"id": "repair malformed files", "kind": "or", "p": 0.3},
+  {"id": "keep the parser fast", "kind": "and", "p": 0.5, "decision": "dec_DECISION_ID"},
+  "tests pass"]}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `id` | **Required.** What it rests on, as in a plain entry. |
+| `kind` | **Required.** `and`: a child that must hold. `or`: one of the premise's alternatives, the readings of an ambiguity or the ways to do something, one of which holds. |
+| `p` | Optional, 0 to 1. For an `and` edge, how much the child matters. For an `or` edge, its probability: one premise's `or` weights sum to 1. |
+| `decision` | Optional: the decision that set `p`, a decision id in the state. |
+| `why` | Optional: your note on the weight, up to 2,000 characters. |
+
+A plain id is an `and` edge with no weight. One premise's `or` weights that do not sum to 1
+are kept, and the write answers with `warnings` naming them. Support runs one way: a write
+whose `depends_on` would make a loop between premises is a `422`.
+
+To confirm a reading, write the premise again with the weights you mean, such as `p: 1` for
+the confirmed alternative and `p: 0` for the rest. The new weights apply from then on, and the
+earlier readings keep theirs. [Choices](/guides/choices#options-as-premises) can propose the
+alternatives, and [decisions](/guides/decisions#weigh-a-premise) can weigh them. The weights do
+not change what a face is shown.
+
 ## Status
 
 Each premise has the status your agent gave it, and each decision is `decided`. What you read
-back is the **effective** status: `invalidated` when the item's own status is, or when
-anything it depends on is invalidated, directly or through other items; otherwise its own.
-Only `invalidated` spreads. An item that declared no `depends_on` does not depend on anything.
+back is the **effective** status: `invalidated` when the item's own status is, when anything
+it rests on through a plain id or an `and` edge is invalidated, or when every one of its `or`
+alternatives is, directly or through other items; otherwise its own. Only `invalidated`
+spreads. An item that declared no `depends_on` does not depend on anything.
 
 Set an invalidated premise to another status and what depended on it is restored, unless it
 still depends on something else that is invalidated.
@@ -214,8 +247,10 @@ curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
 | `status` | The effective status. |
 | `asserted_status` | The status your agent set, shown when it differs from `status`. |
 | `because` | What invalidated it, when that was something it depends on. |
-| `depends_on` | What it rests on, as declared. |
-| `role` | `wanted` when it is a goal. Left out when none is set. |
+| `depends_on` | What it rests on, as declared: plain ids, and edges with their `kind`, `p` and `decision`. |
+| `role` | `wanted` when it is a goal, `test` when it is a check. Left out when none is set. |
+| `face` | The face that proposed it, for an option written in with [choices](/guides/choices#options-as-premises). |
+| `reason` | Why its status was set for you: an alternative a [weighing](/guides/decisions#weigh-a-premise) set aside. |
 | `origin` | Who set it, as declared. Left out when none is set. |
 
 A decision item carries `status` (`decided` or `invalidated`) and `because` the same way.
@@ -313,6 +348,72 @@ A state opened without `model` takes any of your faces, each turn naming its fac
 `model`. Each face reads its own replies as its own, and the others' as someone else's,
 labelled with their name. Its steering reads their causes too, unless `causes_visible` is
 `false` on the state or on the turn.
+
+## What to do next
+
+`GET /v1/states/{state_id}/synopsis` reads the state as work to do. Add `?since=ci_N` to list
+what was written after item `ci_N`. `GET /v1/states/{state_id}/items?synopsis=1` returns the
+same, as `synopsis`, beside the items.
+
+A premise is **achieved** when it is verified, or when it rests on other premises, each of
+its `and` children is achieved, and the alternative its `or` split is committed to is achieved.
+An `or` split is committed to the alternative a human stated (`origin: human`), or to a clear
+winner (`p` of at least 0.6, ahead of the next by at least 0.2), or to the only alternative
+still standing.
+
+```json
+{"object": "state.synopsis", "id": "fs_STATE_ID", "done": false,
+ "goals": [{"key": "task", "status": "stated", "achieved": false}],
+ "next": "task",
+ "frontier": [
+   {"key": "tests pass", "action": "test", "reason": "run the test", "weight": 1.0,
+    "path": ["task", "tests pass"]},
+   {"key": "handle bad input", "action": "decide", "reason": "an `or` split with no weights: weigh it",
+    "weight": 0.5, "path": ["task", "handle bad input"],
+    "alternatives": ["reject malformed files", "repair malformed files"]}],
+ "ready": [ … ], "groups": [ … ], "claims": [],
+ "outline": "stated task [wanted]\n  stated (and) tests pass [test]\n  stated (and) handle bad input\n …",
+ "text": "Next goal: task.\n- test tests pass: run the test [weight 1]\n …"}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `done` | `true` when there is a wanted premise and every one is achieved. |
+| `goals` | Each wanted premise, with its status and whether it is achieved. |
+| `next` | The first wanted premise not yet achieved whose wanted premises under it all are. |
+| `frontier` | What blocks `next`, heaviest first. Each item has its `action`: `test` (a check to write, run or fix), `decide` (an `or` split with no weights), `ask` (an `or` split with no clear winner: ask the person), `expand` (too vague to check, or needed and invalidated) or `reopen` (options or weights made before a premise they read changed). `weight` is the product of the shares along `path`, a share being a weight that was set, renormalised among its siblings, or an equal share where none was. |
+| `changed` | With `since`: the items written after it. |
+| `outline` | The support tree under each wanted premise, one line per premise: its status, the kind and weight of the edge into it, its key. |
+| `text` | `next`, `frontier` and `changed` in at most 1,500 characters, to read at the start of a session. |
+
+## Several agents
+
+The synopsis also gives the work for several agents at once:
+
+| Field | Meaning |
+|-------|---------|
+| `ready` | Every frontier item, across every wanted premise whose wanted premises under it are achieved, each with the `goals` it serves. An item another agent has claimed is left out. |
+| `groups` | The ready items in groups: take one item from each group and run them at once. Two items share a group when one rests on the other, when they rest on a premise in common that is not verified, or when they share a `touches`. |
+| `claims` | Who holds which premise, since when and until when. |
+
+An agent claims an item before it starts:
+
+```bash
+curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/claims \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "tests pass", "agent": "worker-1", "ttl_seconds": 1800}'
+```
+
+```json
+{"object": "claim", "id": "clm_CLAIM_ID", "key": "tests pass", "agent": "worker-1",
+ "since": "2026-11-21T22:40:00+00:00", "expires_at": "2026-11-21T23:10:00+00:00"}
+```
+
+`ttl_seconds` is 1 to 86,400, 900 by default. A claim holds until it expires, until it is
+released with `DELETE /v1/states/{state_id}/claims/{claim_id}`, or until the premise's status
+changes. While it holds, another agent's claim on the same premise is a `409`; the same agent
+claiming again renews it.
 
 ## Read a state
 
@@ -428,6 +529,10 @@ states at once.
 | `422` | Compacting a state open to any face, without `model` | `` this conversation takes any face: name the one to compact in `model` `` |
 | `422` | A premise `status` that is not one of the five | `` a premise `status` is one of stated, verified, assumed, unresolved, invalidated ('maybe') `` |
 | `422` | A premise that depends on itself | `` premise 'rent' cannot depend on itself `` |
+| `422` | A `depends_on` that would make a loop between premises | `` premise 'a': `depends_on` would make a loop (a -> b -> a); support flows one way `` |
+| `422` | An edge with a `kind` other than `and` or `or`, or a `p` outside 0 to 1 | `` a `depends_on` entry's `kind` is "and" or "or" ('xor', on 'a') `` |
+| `422` | An edge's `decision` that is not a decision in the state | `` premise 'a': a `depends_on` entry's `decision` names no decision in this conversation: dec_X `` |
+| `409` | A claim on a premise another agent holds | `` 'tests pass' is claimed by worker-1 until 2026-11-21T23:10:00+00:00 `` |
 | `422` | `depends_on` naming something not in the state or the request | `` premise 'can_afford_rent': `depends_on` names no premise or decision (or choices option) in this conversation: rent `` |
 | `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys, decision ids and choices ids `` |
 | `402` | A turn or a compaction with no credit left | See [Billing](/guides/billing). |
