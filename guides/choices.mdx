@@ -56,6 +56,7 @@ a decision model, would choose between them.
 | `instructions` | The question. Optional: without one, the face proposes the question it would ask (see [No question](#no-question)). |
 | `state` | The situation, in prose, at most **3,000 tokens**. For a longer situation, build a [state](/guides/states) and send `state_id`. |
 | `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is an addendum for this call only (see [A state as the situation](#a-state-as-the-situation)). |
+| `depends_on` | Only with `state_id`: what the options rest on, a list of at most 200 premise keys, decision ids, option ids (`opt_...`) and choices ids (`cho_...`) in the state. The face is shown each of them, and the premises each directly depends on, in full (see [What a face is shown](/guides/states#what-a-face-is-shown)). The options added to the state record it. |
 | `max_choices` | The most options to return, 1 to 32. Default `8`. |
 
 A request needs a situation: `state`, `state_id`, or both.
@@ -147,6 +148,20 @@ list with a `choices_item`: name an option in a premise's or decision's `depends
 decision resting on it is shown why the face proposed it. See
 [Options in a state](/guides/states#options-in-a-state).
 
+Send `depends_on` to name what the options rest on: the premises, decisions and earlier
+options the face must read. Each is shown to the face in full, with the premises it directly
+depends on. The options added to the state keep the list, and they are marked `invalidated`,
+with `because`, when an item they name is. An option never invalidates anything itself.
+
+```bash
+curl -s https://api.faces.sh/v1/choices \
+  -H "Authorization: Bearer $FACES_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "@head~socrates:maestro-1", "state_id": "fs_STATE_ID",
+       "instructions": "What should the shop do?",
+       "depends_on": ["can_afford_rent"], "max_choices": 3}'
+```
+
 ---
 
 ## Maestros
@@ -186,7 +201,7 @@ Nothing else is added, and a refused call is not charged.
 | `402` | No credit left to pay for the call. See [Billing](/guides/billing). |
 | `404` | The face, or the state in `state_id`, does not exist or is not yours to use. |
 | `409` | The face has nothing compiled, or was compiled before the current release: recompile it. The message says which. |
-| `422` | The request cannot be read: `model` is not `@face:maestro-1` (the message shows the form to use; `view` and `version` are removed), there is no situation, `state` is over 3,000 tokens, or the state holds no premises or decisions yet. The message says which. |
+| `422` | The request cannot be read: `model` is not `@face:maestro-1` (the message shows the form to use; `view` and `version` are removed), there is no situation, `state` is over 3,000 tokens, the state holds no premises or decisions yet, `depends_on` is sent without `state_id`, or it names something not in the state. The message says which. |
 | `429` | The per-minute [rate limit](/errors#rate-limits), or the plan's allowance is used and `api_fallback` is off. The message names the limit. |
 | `503` | The face's options failed. Retry. |
 
