@@ -151,12 +151,17 @@ the first time a key is used, and kept after that.
 | `description` | What it means, in plain words. Required the first time the key is used. |
 | `status` | How sure your agent is of it: `stated` (the default), `verified`, `assumed`, `unresolved` or `invalidated`. |
 | `depends_on` | The premise keys and decision ids it rests on: a list of at most 200, each already in the state or sent in the same request. A premise cannot depend on itself. |
+| `role` | `wanted` marks the premise as a goal: the outcome the state is working toward. Optional. |
+| `origin` | Who set the premise: `human`, `agent`, `tool` or `web`. Optional. Use it to keep the user's goals and rules apart from your agent's own findings. |
 
 Send premises with a turn as `premises`, a list of these, or add them on their own (see
 [Add items](#add-items)).
 
 A newer reading of a key replaces it from that point on. A newer reading without
-`depends_on` keeps the earlier one; `[]` clears it. Every decision is made with the premises
+`depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role` or
+`origin` keeps the earlier one too; `null` clears it. Any other value for either is a `422`.
+`role` and `origin` are kept with the state and returned when you read it; they do not
+change what a face is shown. Every decision is made with the premises
 in force when it was made, and the state keeps each reading, so you can always see what a
 decision was made under.
 
@@ -202,6 +207,8 @@ curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
 | `asserted_status` | The status your agent set, shown when it differs from `status`. |
 | `because` | What invalidated it, when that was something it depends on. |
 | `depends_on` | What it rests on, as declared. |
+| `role` | `wanted` when it is a goal. Left out when none is set. |
+| `origin` | Who set it, as declared. Left out when none is set. |
 
 A decision item carries `status` (`decided` or `invalidated`) and `because` the same way.
 
@@ -352,8 +359,8 @@ Creating a state, adding items and compacting count against your plan's per-minu
 
 <Note>
 Every state route takes `version`, a body field on `POST` and a query parameter on `GET`:
-`23`, the default, or `22`, which reads and writes the same states without statuses or
-`depends_on` (sending them is a `422`) and without `status_changes`.
+`23`, the default, or `22`, which reads and writes the same states without statuses,
+`depends_on`, `role` or `origin` (sending them is a `422`) and without `status_changes`.
 </Note>
 
 ## Expiry
