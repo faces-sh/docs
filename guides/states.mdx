@@ -161,11 +161,10 @@ Send premises with a turn as `premises`, a list of these, or add them on their o
 A newer reading of a key replaces it from that point on. A newer reading without
 `depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role` or
 `origin` keeps the earlier one too; `null` clears it. Any other value for either is a `422`.
-`role` and `origin` are kept with the state and returned when you read it. A `wanted`
-premise, and each premise it directly depends on, is always shown to the faces in full (up to
-2,000 characters of its value and of its description), however many premises the state holds,
-up to about 60,000 characters in all. Past that, wanted premises are kept first and the rest
-are shown like other premises. `origin` does not change what a face is shown. Every decision
+`role` and `origin` are kept with the state and returned when you read it; they do not
+change what a face is shown. A `wanted` premise marks an outcome your agent works toward, for
+it to know when to stop. To have a face read a premise, name it in the call's `depends_on`
+(see [What a face is shown](#what-a-face-is-shown)). Every decision
 is made with the premises in force when it was made, and the state keeps each reading, so you can always see what a
 decision was made under.
 
@@ -270,8 +269,25 @@ Your agent decides which to revisit. Nothing is decided again for you.
 
 A decision request in a state may send `depends_on`: the premise keys, decision ids and option
 ids the decision rests on, at most 200, each already in the state or sent as a premise in the same
-request. The decision is shown those premises and decisions, and is invalidated when one of
-them is. Without `depends_on`, it rests on every premise in force when it is made.
+request. The decision is shown those premises and decisions, in full, with the premises each
+of them directly depends on, and is invalidated when one of them is. Without `depends_on`, it
+rests on every premise in force when it is made.
+
+## What a face is shown
+
+When a face reads a state, for [choices](/guides/choices#a-state-as-the-situation) or a
+decision, it is shown:
+
+- **What the call names in `depends_on`**, and the premises each of those directly depends
+  on, always and in full, however many premises the state holds, up to about 60,000
+  characters in all. Past that, the rest are shown like any other premise.
+- **The premises the state rests on most**: those the most other items depend on.
+- **The premises closest to the question**, and what they depend on.
+
+Other premises are not shown, and a premise shown without being named is cut to its first
+few hundred characters. A premise's `role` never changes what a face is
+shown, and neither does the wording of the question: to make sure a face reads a premise,
+name it in `depends_on`.
 
 The response adds `decision_ids`, each question's decision id, to name in a later
 `depends_on`, and `decisions_reopened`, the decisions the premises sent with it put in
