@@ -35,8 +35,10 @@ curl -X POST https://api.faces.sh/v1/faces \
 
 ### `specialty`
 
-What the face is known for, in a few words: the one line a card shows under the
-name. Optional, **80 characters maximum**, single line.
+The **mode** the face brings to a model, named the way a program is named: a
+face of Michael Levin might be "Biological Platonism", not "Biologist". It is the
+one line a card shows under the name. Optional, **80 characters maximum**, single
+line.
 
 **Metadata only.** A specialty is not compiled into the face and does not change its causes.
 
@@ -49,7 +51,7 @@ name. Optional, **80 characters maximum**, single line.
   that cleaning, so trailing whitespace never costs you characters.
 - Returned on every face, in both the list and the detail route, **without**
   `?include=`.
-- Searched by `?q=`; see [Search](#search).
+- Searched by `?q=` and ranked by `?for=`; see [Finding faces](#finding-faces).
 - Send `"specialty": ""` to clear it. Omit the field on PATCH to leave it alone.
 
 Set it on create or update:
@@ -63,7 +65,16 @@ curl -X PATCH https://api.faces.sh/v1/faces/FACE_ALIAS \
 
 ### `description`
 
-Optional plain-text bio (up to **1500 characters**, roughly 200–250 words), surfaced in listings and dashboards.
+The face's **"use me for" line**: like an agent skill's description, it tells an
+agent when to ask this face. Write one or two sentences that name the tasks,
+questions or decisions the face is right for:
+
+```json
+{"description": "Use me for deciding whether a research result is worth building on, and for spotting when a claim outruns its evidence."}
+```
+
+Optional, plain text, up to **1500 characters**. Agents choose faces by the
+description and the specialty, so a face with neither is hard to pick.
 
 **Metadata only.** A description is not compiled into the face and does not change its causes.
 
@@ -342,6 +353,30 @@ the first word.
 
 With `sort=relevance`, the best matches come first.
 
+### Rank by fit for a task
+
+```bash
+curl -G "https://api.faces.sh/v1/faces" \
+  --data-urlencode "for=is this schema change safe to deploy" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+`?for=` takes a task or question in plain words and ranks the faces by how well
+their `description` and `specialty` fit it, **by meaning**, best fit first. Each
+face carries a `fit` from 0 to 1:
+
+```json
+{"alias": "knuth", "specialty": "Literate rigour", "fit": 0.628, "...": "..."}
+```
+
+- It **ranks and never filters**: every face the other parameters let through comes
+  back. Combine it with `q`, `tag`, `include_published` and the rest to narrow first.
+- It sets the order (`sort=fit`). Sending another `sort` with it is a `422`, and so
+  is `sort=fit` without it. `order=asc` reads worst fit first.
+- `fit` compares faces within one response; it is not a threshold. `fit` is `null`
+  without `for`. A face with no description and no specialty fits `0`.
+- Up to 1,000 characters. Pages like any other sort.
+
 ### Sort
 
 | `sort` | order |
@@ -350,6 +385,7 @@ With `sort=relevance`, the best matches come first.
 | `alias` | alphabetical |
 | `relevance` | best match for `q`; a face *called* Socrates beats one that mentions him |
 | `usage` | most used first |
+| `fit` | best fit for `for` first; set by `for`, see [Rank by fit](#rank-by-fit-for-a-task) |
 
 `?order=asc|desc` reverses any of them. **Leave it out and nothing changes**: each
 field keeps the direction in the table, and those are not all the same direction.
