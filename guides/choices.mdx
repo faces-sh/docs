@@ -66,7 +66,8 @@ A request needs a situation: `state`, `state_id`, or both.
 |-------|---------|
 | `object` | `choices`, or `choices.question` when no question was asked. |
 | `model` | The model, as sent. |
-| `choices` | The options, strongest first, each `{name, description}`. |
+| `choices` | The options, strongest first, each `{name, description}`. With `state_id` and a question, each also has an `id` (`opt_...`). |
+| `choices_item` | Only with `state_id` and a question: the id (`cho_...`) of the options as added to the state. |
 | `question`, `alternatives` | Only when no question was asked: the question the face would ask, and other questions it would consider. |
 | `usage` | `input_tokens` and `output_tokens`: exactly what the request is billed for (see [Cost](#cost)). |
 
@@ -124,10 +125,11 @@ curl -X POST https://api.faces.sh/v1/choices \
   "object": "choices",
   "model": "@head~socrates:maestro-1",
   "choices": [
-    {"name": "Direct Answer", "description": "The shop should compare the chain's prices to its own costs and decide if it can compete or must adapt, as rent is already unaffordable."},
-    {"name": "Virtue Over Profit", "description": "Focus on ethical pricing and quality, even if it means closing, for virtue is more valuable than financial survival."},
-    {"name": "Terminate Lease", "description": "If the chain's prices make competition impossible, end the lease and seek a new location or business model."}
+    {"id": "opt_OPTION_ID_1", "name": "Direct Answer", "description": "The shop should compare the chain's prices to its own costs and decide if it can compete or must adapt, as rent is already unaffordable."},
+    {"id": "opt_OPTION_ID_2", "name": "Virtue Over Profit", "description": "Focus on ethical pricing and quality, even if it means closing, for virtue is more valuable than financial survival."},
+    {"id": "opt_OPTION_ID_3", "name": "Terminate Lease", "description": "If the chain's prices make competition impossible, end the lease and seek a new location or business model."}
   ],
+  "choices_item": "cho_CHOICES_ID",
   "usage": {"input_tokens": 1431, "output_tokens": 295}
 }
 ```
@@ -139,6 +141,11 @@ written to the state yourself, as premises through [`/v1/states`](/guides/states
 The face reads each premise with its status, so it can tell a verified fact from an
 assumption, or from one that no longer holds. A state must hold at least one premise or
 decision.
+
+With a question, the options are added to the state. Each comes back with an `id`, and the
+list with a `choices_item`: name an option in a premise's or decision's `depends_on`, and a
+decision resting on it is shown why the face proposed it. See
+[Options in a state](/guides/states#options-in-a-state).
 
 ---
 
