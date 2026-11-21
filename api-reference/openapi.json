@@ -8737,7 +8737,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
         "operationId": "create_conversation_v1_conversations_post",
         "deprecated": true,
         "parameters": [
@@ -8798,7 +8798,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`. `version` is 23 (the default) or 22.",
         "operationId": "create_conversation_v1_states_post",
         "parameters": [
           {
@@ -9237,7 +9237,7 @@
           "Sessions"
         ],
         "summary": "Add Items",
-        "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description, status, depends_on}]). A newer reading of a key replaces it\nfrom here on, and the response lists `decisions_made_under_old_values`: every earlier\ndecision made while a key read here held a different value. Nothing is re-decided.",
+        "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description, status, depends_on, role, origin}]). A newer reading of a key replaces it\nfrom here on, and the response lists `decisions_made_under_old_values`: every earlier\ndecision made while a key read here held a different value. Nothing is re-decided.",
         "operationId": "add_items_v1_conversations__conversation_id__items_post",
         "deprecated": true,
         "parameters": [
@@ -9427,7 +9427,7 @@
           "Sessions"
         ],
         "summary": "Add Items",
-        "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description, status, depends_on}]). A newer reading of a key replaces it\nfrom here on, and the response lists `decisions_made_under_old_values`: every earlier\ndecision made while a key read here held a different value. Nothing is re-decided.",
+        "description": "Add the client's own messages and premise readings (`items`, or `premises` as\n[{key, value, description, status, depends_on, role, origin}]). A newer reading of a key replaces it\nfrom here on, and the response lists `decisions_made_under_old_values`: every earlier\ndecision made while a key read here held a different value. Nothing is re-decided.",
         "operationId": "add_items_v1_states__conversation_id__items_post",
         "parameters": [
           {
