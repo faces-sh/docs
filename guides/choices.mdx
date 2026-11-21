@@ -56,6 +56,8 @@ a decision model, would choose between them.
 | `instructions` | The question. Optional: without one, the face proposes the question it would ask (see [No question](#no-question)). |
 | `state` | The situation, in prose, at most **3,000 tokens**. For a longer situation, build a [state](/guides/states) and send `state_id`. |
 | `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is an addendum for this call only (see [A state as the situation](#a-state-as-the-situation)). |
+| `into` | Only with `state_id` and a question: a premise of the state. Each option is written in as a premise it rests on (see [Options as premises](#options-as-premises)). |
+| `kind` | Only with `into`: `or` (the default) when the options are alternatives, one of which holds; `and` when they must all hold. |
 | `depends_on` | Only with `state_id`: what the options rest on, a list of at most 200 premise keys, decision ids, option ids (`opt_...`) and choices ids (`cho_...`) in the state. The face is shown each of them, and the premises each directly depends on, in full (see [What a face is shown](/guides/states#what-a-face-is-shown)). The options added to the state record it. |
 | `max_choices` | The most options to return, 1 to 32. Default `8`. |
 
@@ -163,6 +165,37 @@ curl -s https://api.faces.sh/v1/choices \
 ```
 
 ---
+
+## Options as premises
+
+With `into`, each option is also written into the state as a premise of its own, and the
+premise named in `into` rests on each of them through an edge of `kind` (see
+[And, or and weights](/guides/states#and-or-and-weights)):
+
+```bash
+curl -X POST https://api.faces.sh/v1/choices \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "@head~socrates:maestro-1", "state_id": "fs_STATE_ID",
+       "instructions": "What does handling bad input mean here?",
+       "into": "handle bad input", "kind": "or", "max_choices": 4}'
+```
+
+```json
+{"object": "choices", "model": "@head~socrates:maestro-1",
+ "choices": [{"id": "opt_OPTION_ID", "name": "Reject malformed files",
+              "description": "Refuse a file that does not parse, and say why.",
+              "premise": "Reject malformed files"}, …],
+ "choices_item": "cho_CHOICES_ID",
+ "into": {"premise": "handle bad input", "kind": "or", "side_node": "sn_ID"},
+ "usage": { … }}
+```
+
+Each option's premise is `assumed`, has `origin: agent` and the `face` that proposed it, and
+its key is the option's name (followed by the premise's key in parentheses when the state
+already has that key). `into.side_node` is the record of this call. `into` naming no premise of
+the state is a `422`, and nothing is charged. Weigh the options next with
+[decisions](/guides/decisions#weigh-a-premise).
 
 ## Maestros
 

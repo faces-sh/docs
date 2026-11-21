@@ -340,6 +340,41 @@ On `/v1/decisions`, `input` takes `user` messages only: write the history into t
 Both paths accept `conversation`, `premises`, `depends_on` and `compaction`: see
 [States](/guides/states#decisions-in-a-state).
 
+## Weigh a premise
+
+In a state, `weigh` asks the face to weigh one premise's edges, in place of `questions`:
+
+```bash
+curl -X POST https://api.faces.sh/v1/decisions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "@head~socrates:maestro-1/jev-latest", "conversation": "fs_STATE_ID",
+       "weigh": {"premise": "handle bad input", "cutoff": 0.85}}'
+```
+
+| Field | Meaning |
+|-------|---------|
+| `premise` | **Required.** A premise of the state with at least two children of one kind. |
+| `kind` | `or` or `and`: which edges to weigh, needed only when the premise rests on both. |
+| `cutoff` | Above 0 and at most 1, 0.85 by default: the probability to keep. |
+
+The face decides one `choice` between the premise's children, and each child's probability is
+written onto its edge, with the decision's id. For `or` edges, the likeliest alternatives are
+kept until they reach `cutoff`, and the rest are set `invalidated`, each with a `reason`. An
+`and` child is never set aside: every one must still hold.
+
+```json
+{"object": "decision", "answers": [{"type": "choice", "name": "weigh", "choice": "Reject malformed files",
+  "probabilities": [ … ], "confidence": 0.46}],
+ "decision_ids": {"weigh": "dec_DECISION_ID"},
+ "weigh": {"premise": "handle bad input", "kind": "or", "cutoff": 0.85,
+           "edges": [{"id": "Reject malformed files", "p": 0.73}, {"id": "Repair malformed files", "p": 0.27}],
+           "pruned": [], "side_node": "sn_ID", "written": true, "decision": "dec_DECISION_ID"}}
+```
+
+`weigh` with `questions`, without `conversation`, or naming a premise with fewer than two
+children of the kind is a `422`, and nothing is charged.
+
 ## Cost
 
 A decision is charged in two parts: the steering (the upstream model), then the decision model.
