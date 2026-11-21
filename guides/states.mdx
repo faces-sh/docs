@@ -141,9 +141,14 @@ calls are added by the turns that produce them.
 
 ## Premises
 
-A premise is a fact your agent's decisions depend on, named by a `key` (1 to 64 letters,
-digits, `_` or `-`), with a `value` and a plain `description`. The description is required
+A premise is a fact your agent's decisions depend on, named by a `key`, with a `value` and a plain `description`. The description is required
 the first time a key is used, and kept after that.
+
+A key is plain text of 1 to 120 characters on one line, such as `costs under $100?` or
+`Resolve "can eat"`. Spaces, quotes and punctuation are kept as written, and spaces at
+either end are trimmed. A key cannot hold control characters (a tab or a newline among them),
+line or paragraph separators, or the characters that reverse the direction of text. Name a
+key in `depends_on` exactly as you wrote it.
 
 | Field | Meaning |
 |-------|---------|
@@ -416,7 +421,7 @@ states at once.
 | `404` | A turn names a different face from the one the state was opened with | `no such conversation, or it has expired. Nothing was charged.` |
 | `422` | Adding a reply or a decision as if a face wrote it | `` a client adds its own messages (`role: user`) only: a face's replies and decisions are written by the server `` |
 | `422` | A premise key used for the first time, with no `description` | `` premise 'rates' is new: give its `description` (what it means, in plain words) `` |
-| `422` | A premise `key` that is not 1 to 64 letters, digits, `_` or `-` | `` a premise `key` is 1-64 letters, digits, _ or - ('has space') `` |
+| `422` | A premise `key` that is empty, longer than 120 characters, or holds a newline or another control character | `` a premise `key` is plain text of 1 to 120 characters on one line, with no control characters ('two\nlines') `` |
 | `422` | `premises` or `causes_visible` on a turn with no `conversation` | `` `premises` and `causes_visible` belong to a conversation: send its id as `conversation` `` |
 | `422` | `conversation` and `session` both sent, with different ids | `` send `conversation` (or its old name `session`), not both `` |
 | `422` | `causes_visible` that is not `true` or `false` | `` `causes_visible` is true or false `` |
