@@ -160,9 +160,12 @@ Send premises with a turn as `premises`, a list of these, or add them on their o
 A newer reading of a key replaces it from that point on. A newer reading without
 `depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role` or
 `origin` keeps the earlier one too; `null` clears it. Any other value for either is a `422`.
-`role` and `origin` are kept with the state and returned when you read it; they do not
-change what a face is shown. Every decision is made with the premises
-in force when it was made, and the state keeps each reading, so you can always see what a
+`role` and `origin` are kept with the state and returned when you read it. A `wanted`
+premise, and each premise it directly depends on, is always shown to the faces in full (up to
+2,000 characters of its value and of its description), however many premises the state holds,
+up to about 60,000 characters in all. Past that, wanted premises are kept first and the rest
+are shown like other premises. `origin` does not change what a face is shown. Every decision
+is made with the premises in force when it was made, and the state keeps each reading, so you can always see what a
 decision was made under.
 
 ## Status
