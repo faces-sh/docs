@@ -82,6 +82,16 @@ description and the specialty, so a face with neither is hard to pick.
 - Server strips ASCII control characters and normalizes line endings.
 - Send `"description": ""` to clear it. Omit the field on PATCH to leave it unchanged.
 
+### Drafted cards
+
+If you leave `description` or `specialty` empty, Faces drafts them for you once the
+face has compiled enough material, and keeps a drafted card current as the face
+grows. A face with little compiled stays blank until it has more.
+
+A card you write is yours. Setting `description` or `specialty` on create or PATCH,
+even saving a draft back unchanged or clearing it with `""`, means Faces never drafts
+that face's card again.
+
 ### `basic_facts`
 
 A key:value object for census-like facts: three **fields** and nine **keys**.
