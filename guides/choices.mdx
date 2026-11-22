@@ -194,7 +194,20 @@ curl -X POST https://api.faces.sh/v1/choices \
 Each option's premise is `assumed`, has `origin: agent` and the `face` that proposed it, and
 its key is the option's name (followed by the premise's key in parentheses when the state
 already has that key). `into.side_node` is the record of this call. `into` naming no premise of
-the state is a `422`, and nothing is charged. Weigh the options next with
+the state is a `422`, and nothing is charged.
+
+An option that proposes again, in the same or nearly the same words, a premise the `into`
+premise already rests on is not written twice. It comes back with `matched: true` and `premise`
+set to the key of the premise already there, and the call's side node records it as a
+re-proposal:
+
+```json
+{"id": "opt_OPTION_ID", "name": "Reject malformed files",
+ "description": "Refuse a file that does not parse, and say why.",
+ "premise": "Reject malformed files", "matched": true}
+```
+
+Weigh the options next with
 [decisions](/guides/decisions#weigh-a-premise).
 
 ## Maestros
