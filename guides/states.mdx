@@ -157,7 +157,7 @@ key in `depends_on` exactly as you wrote it.
 | `description` | What it means, in plain words. Required the first time the key is used. |
 | `status` | How sure your agent is of it: `stated` (the default), `verified`, `assumed`, `unresolved` or `invalidated`. |
 | `depends_on` | What it rests on: premise keys, decision ids and option ids, at most 200, each already in the state or sent in the same request. Each entry is a plain id or an edge with a kind and a weight (see [And, or and weights](#and-or-and-weights)). A premise cannot depend on itself. See [Options in a state](#options-in-a-state). |
-| `role` | `wanted` marks the premise as a goal: the outcome the state is working toward. `test` marks a check that must pass. Optional. |
+| `role` | `goal` marks the premise as a goal: the outcome the state is working toward. `test` marks a check that must pass. Optional. `wanted` is a deprecated name for `goal`, stored as `goal`, and is removed by 2026-12-31. |
 | `touches` | What working on it touches: a list of at most 20 resources in plain text, such as a repository or a file. Two premises that touch the same resource are not given to two agents at once (see [Several agents](#several-agents)). Optional. |
 | `origin` | Who set the premise: `human`, `agent`, `tool` or `web`. Optional. Use it to keep the user's goals and rules apart from your agent's own findings. |
 
@@ -168,7 +168,7 @@ A newer reading of a key replaces it from that point on. A newer reading without
 `depends_on` keeps the earlier one; `[]` clears it. A newer reading without `role`,
 `origin` or `touches` keeps the earlier one too; `null` clears it. Any other value is a `422`.
 `role`, `origin` and `touches` are kept with the state and returned when you read it; they do
-not change what a face is shown. A `wanted` premise marks an outcome your agent works toward,
+not change what a face is shown. A `goal` premise marks an outcome your agent works toward,
 for it to know when to stop. To have a face read a premise, name it in the call's `depends_on`
 (see [What a face is shown](#what-a-face-is-shown)). Every decision
 is made with the premises in force when it was made, and the state keeps each reading, so you can always see what a
@@ -248,7 +248,7 @@ curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \
 | `asserted_status` | The status your agent set, shown when it differs from `status`. |
 | `because` | What invalidated it, when that was something it depends on. |
 | `depends_on` | What it rests on, as declared: plain ids, and edges with their `kind`, `p` and `decision`. |
-| `role` | `wanted` when it is a goal, `test` when it is a check. Left out when none is set. |
+| `role` | `goal` when it is a goal, `test` when it is a check. Left out when none is set. |
 | `face` | The face that proposed it, for an option written in with [choices](/guides/choices#options-as-premises). |
 | `reason` | Why its status was set for you: an alternative a [weighing](/guides/decisions#weigh-a-premise) set aside. |
 | `origin` | Who set it, as declared. Left out when none is set. |
@@ -372,18 +372,18 @@ still standing.
     "weight": 0.5, "path": ["task", "handle bad input"],
     "alternatives": ["reject malformed files", "repair malformed files"]}],
  "ready": [ … ], "groups": [ … ], "claims": [],
- "outline": "stated task [wanted]\n  stated (and) tests pass [test]\n  stated (and) handle bad input\n …",
+ "outline": "stated task [goal]\n  stated (and) tests pass [test]\n  stated (and) handle bad input\n …",
  "text": "Next goal: task.\n- test tests pass: run the test [weight 1]\n …"}
 ```
 
 | Field | Meaning |
 |-------|---------|
-| `done` | `true` when there is a wanted premise and every one is achieved. |
-| `goals` | Each wanted premise, with its status and whether it is achieved. |
-| `next` | The first wanted premise not yet achieved whose wanted premises under it all are. |
+| `done` | `true` when there is a goal premise and every one is achieved. |
+| `goals` | Each goal premise, with its status and whether it is achieved. |
+| `next` | The first goal premise not yet achieved whose goal premises under it all are. |
 | `frontier` | What blocks `next`, heaviest first. Each item has its `action`: `test` (a check to write, run or fix), `decide` (an `or` split with no weights), `ask` (an `or` split with no clear winner: ask the person), `expand` (too vague to check, or needed and invalidated) or `reopen` (options or weights made before a premise they read changed). `weight` is the product of the shares along `path`, a share being a weight that was set, renormalised among its siblings, or an equal share where none was. |
 | `changed` | With `since`: the items written after it. |
-| `outline` | The support tree under each wanted premise, one line per premise: its status, the kind and weight of the edge into it, its key. |
+| `outline` | The support tree under each goal premise, one line per premise: its status, the kind and weight of the edge into it, its key. |
 | `text` | `next`, `frontier` and `changed` in at most 1,500 characters, to read at the start of a session. |
 
 ## Several agents
@@ -392,7 +392,7 @@ The synopsis also gives the work for several agents at once:
 
 | Field | Meaning |
 |-------|---------|
-| `ready` | Every frontier item, across every wanted premise whose wanted premises under it are achieved, each with the `goals` it serves. An item another agent has claimed is left out. |
+| `ready` | Every frontier item, across every goal premise whose goal premises under it are achieved, each with the `goals` it serves. An item another agent has claimed is left out. |
 | `groups` | The ready items in groups: take one item from each group and run them at once. Two items share a group when one rests on the other, when they rest on a premise in common that is not verified, or when they share a `touches`. |
 | `claims` | Who holds which premise, since when and until when. |
 
