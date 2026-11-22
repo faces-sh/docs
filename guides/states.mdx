@@ -59,7 +59,7 @@ All fields are optional:
 | `model` | A face, alone: `@alice`, `@owner~alias`, or a composite (`(@alice \| @bob)`). No maestro is needed (`@alice:maestro-1` is the same face), and a downstream model is a `422`. The state then takes that face only, and echoes it as `model`. Left out, it takes any of your faces. |
 | `causes_visible` | Whether a face's steering reads the other faces' causes. Default `true`. |
 | `items` | The first items: your messages and premises (see [Add items](#add-items)). |
-| `premises` | The first premises, in place of `items`, as on [Add items](#add-items). |
+| `premises` | The first premises, alone or beside `items`, as on [Add items](#add-items). |
 
 Any other field is a `422` that names it.
 
@@ -277,7 +277,9 @@ Options have no status: resting on one never invalidates anything.
 ## Add items
 
 `POST /v1/states/{state_id}/items` adds your messages and premises, at most 20
-at a time, as `items` (a premise may be written `{key, value, description}`) or as `premises`.
+at a time, as `items` (a premise may be written `{key, value, description}`), as `premises`, or both.
+Both are one write, `items` first, checked together: if anything in it is invalid, the write
+is a `422` and nothing is written.
 
 ```bash
 curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/items \

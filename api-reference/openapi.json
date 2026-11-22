@@ -8737,7 +8737,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`;\n`premises` is taken in place of `items`, as there. `version` is 23 (the default) or 22. Any other top-level field is refused with a 422 that names it.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`;\n`premises` is taken as there, with `items` or alone (both: items first, as one write). `version` is 23 (the default) or 22. Any other top-level field is refused with a 422 that names it.",
         "operationId": "create_conversation_v1_conversations_post",
         "deprecated": true,
         "parameters": [
@@ -8798,7 +8798,7 @@
           "Sessions"
         ],
         "summary": "Create Conversation",
-        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`;\n`premises` is taken in place of `items`, as there. `version` is 23 (the default) or 22. Any other top-level field is refused with a 422 that names it.",
+        "description": "Open a state. `causes_visible` (default true) shows one face the other faces' causes. `items`\n(optional) are the first items: the client's messages and premise readings, each premise\n{key, value, description, status, depends_on, role, origin} as on `POST /v1/states/{id}/items`;\n`premises` is taken as there, with `items` or alone (both: items first, as one write). `version` is 23 (the default) or 22. Any other top-level field is refused with a 422 that names it.",
         "operationId": "create_conversation_v1_states_post",
         "parameters": [
           {
