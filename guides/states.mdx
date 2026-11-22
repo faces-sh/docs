@@ -59,6 +59,9 @@ All fields are optional:
 | `model` | A face, alone: `@alice`, `@owner~alias`, or a composite (`(@alice \| @bob)`). No maestro is needed (`@alice:maestro-1` is the same face), and a downstream model is a `422`. The state then takes that face only, and echoes it as `model`. Left out, it takes any of your faces. |
 | `causes_visible` | Whether a face's steering reads the other faces' causes. Default `true`. |
 | `items` | The first items: your messages and premises (see [Add items](#add-items)). |
+| `premises` | The first premises, in place of `items`, as on [Add items](#add-items). |
+
+Any other field is a `422` that names it.
 
 ## Take a turn
 
@@ -378,12 +381,12 @@ still standing.
 
 | Field | Meaning |
 |-------|---------|
-| `done` | `true` when there is a goal premise and every one is achieved. |
+| `done` | `true` when every goal premise that is not invalidated is achieved, and there is at least one. |
 | `goals` | Each goal premise, with its status and whether it is achieved. |
-| `next` | The first goal premise not yet achieved whose goal premises under it all are. |
+| `next` | The first goal premise not yet achieved whose goal premises under it, other than invalidated ones, all are. A goal premise set `invalidated` is never `next`, and nothing under it is in `frontier` or `ready`. |
 | `frontier` | What blocks `next`, heaviest first. Each item has its `action`: `test` (a check to write, run or fix), `decide` (an `or` split with no weights), `ask` (an `or` split with no clear winner: ask the person), `expand` (too vague to check, or needed and invalidated) or `reopen` (options or weights made before a premise they read changed). `weight` is the product of the shares along `path`, a share being a weight that was set, renormalised among its siblings, or an equal share where none was. |
 | `changed` | With `since`: the items written after it. |
-| `outline` | The support tree under each goal premise, one line per premise: its status, the kind and weight of the edge into it, its key. |
+| `outline` | The support tree under each goal premise, invalidated ones included, one line per premise: its status, the kind and weight of the edge into it, its key. |
 | `text` | `next`, `frontier` and `changed` in at most 1,500 characters, to read at the start of a session. |
 
 ## Several agents
@@ -392,7 +395,7 @@ The synopsis also gives the work for several agents at once:
 
 | Field | Meaning |
 |-------|---------|
-| `ready` | Every frontier item, across every goal premise whose goal premises under it are achieved, each with the `goals` it serves. An item another agent has claimed is left out. |
+| `ready` | Every frontier item, across every goal premise whose goal premises under it are achieved, each with the `goals` it serves. Invalidated goal premises, and what is under them, are left out, as is an item another agent has claimed. |
 | `groups` | The ready items in groups: take one item from each group and run them at once. Two items share a group when one rests on the other, when they rest on a premise in common that is not verified, or when they share a `touches`. |
 | `claims` | Who holds which premise, since when and until when. |
 
@@ -532,6 +535,7 @@ states at once.
 | `422` | A `depends_on` that would make a loop between premises | `` premise 'a': `depends_on` would make a loop (a -> b -> a); support flows one way `` |
 | `422` | An edge with a `kind` other than `and` or `or`, or a `p` outside 0 to 1 | `` a `depends_on` entry's `kind` is "and" or "or" ('xor', on 'a') `` |
 | `422` | An edge's `decision` that is not a decision in the state | `` premise 'a': a `depends_on` entry's `decision` names no decision in this conversation: dec_X `` |
+| `422` | A field `POST /v1/states` does not take | `` unknown field `premise`: a state takes `model`, `causes_visible`, `items`, `premises`, `version` `` |
 | `409` | A claim on a premise another agent holds | `` 'tests pass' is claimed by worker-1 until 2026-11-21T23:10:00+00:00 `` |
 | `422` | `depends_on` naming something not in the state or the request | `` premise 'can_afford_rent': `depends_on` names no premise or decision (or choices option) in this conversation: rent `` |
 | `422` | `depends_on` that is not a list, or names more than 200 | `` `depends_on` is a list of premise keys, decision ids and choices ids `` |
