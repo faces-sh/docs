@@ -237,6 +237,47 @@ curl -X POST https://api.faces.sh/v1/choices \
  "side_node": "sn_ID", "usage": {"input_tokens": 0, "output_tokens": 0}}
 ```
 
+### An option that is already in the state
+
+An option whose name and description are exactly those of a premise elsewhere in the state is
+not copied. That premise is linked under `into` as well, so it now rests under two premises,
+and its name comes back in `linked`. It keeps what it is: a fact you stated stays your fact, and
+a goal or a test is still the same one to prove. Only the same text is linked; an option that
+is merely close to a premise elsewhere is written as a new one. To link it instead, send that
+premise's own name and description.
+
+So the two differ in where they look and how close a match must be. `matched` is a close
+rewording of an option already under `into`, or of one before it in the same call, and nothing
+new is written. `linked` is the exact text of a premise anywhere else in the state, now placed
+under `into` too.
+
+```bash
+curl -X POST https://api.faces.sh/v1/choices \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"state_id": "fs_STATE_ID", "into": "keep it fast", "kind": "and",
+       "options": [{"name": "report each error", "description": "Each error names the line it is on"},
+                   {"name": "stream the input", "description": "Read the file in pieces, never whole"}]}'
+```
+
+```json
+{"object": "choices.written", "into": "keep it fast", "kind": "and",
+ "premises": ["report each error", "stream the input"],
+ "new": ["stream the input"], "matched": [], "linked": ["report each error"], "refused": [],
+ "text": "Wrote 1 sub-goal under \"keep it fast\". \"report each error\" already exists; linked it under \"keep it fast\".",
+ "usage": {"input_tokens": 0, "output_tokens": 0}}
+```
+
+A match is not linked when the premise is already refuted, or when `into` rests on it, since
+linking it would make a loop. It comes back in `refused` with why, and nothing is written for it:
+
+```json
+{"new": [], "matched": [], "linked": [],
+ "refused": [{"key": "handle bad input", "why": "linking it would make a loop: the target rests on it"}]}
+```
+
+A withdrawn premise is never matched, so an option with its text is written as a new one.
+
 A premise takes children of one kind only: an `or` option under a premise that rests on `and`
 children, or the reverse, is a `422` that says why. So is an option under a test, or under a
 fact you stated.
