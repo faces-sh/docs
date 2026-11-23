@@ -349,31 +349,36 @@ curl -X POST https://api.faces.sh/v1/decisions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"model": "@head~socrates:maestro-1/jev-latest", "conversation": "fs_STATE_ID",
-       "weigh": {"premise": "handle bad input", "cutoff": 0.85}}'
+       "weigh": {"premise": "handle bad input"}}'
 ```
 
 | Field | Meaning |
 |-------|---------|
 | `premise` | **Required.** A premise of the state with at least two children of one kind. |
 | `kind` | `or` or `and`: which edges to weigh, needed only when the premise rests on both. |
-| `cutoff` | Above 0 and at most 1, 0.85 by default: the probability to keep. |
+| `as` | Who writes, by the name a claim on the premise's branch holds. A write into a branch someone else holds is a `409`. |
+| `cutoff` | Deprecated: it no longer sets anything aside. With an `or` premise it is a `422`. |
 
 The face decides one `choice` between the premise's children, and each child's probability is
-written onto its edge, with the decision's id. For `or` edges, the likeliest alternatives are
-kept until they reach `cutoff`, and the rest are set `invalidated`, each with a `reason`. An
-`and` child is never set aside: every one must still hold.
+written onto its edge, with the decision's id. For `or` edges the probabilities rank the
+candidates: they say which to try first, and none is set aside. A candidate is ruled out only
+by a test that fails on it, or by you. An `and` child is never set aside either: every one must
+still hold.
 
 ```json
 {"object": "decision", "answers": [{"type": "choice", "name": "weigh", "choice": "Reject malformed files",
-  "probabilities": [ … ], "confidence": 0.46}],
+  "probabilities": [ … ], "confidence": 0.54}],
  "decision_ids": {"weigh": "dec_DECISION_ID"},
  "weigh": {"premise": "handle bad input", "kind": "or", "cutoff": 0.85,
-           "edges": [{"id": "Reject malformed files", "p": 0.73}, {"id": "Repair malformed files", "p": 0.27}],
+           "edges": [{"id": "Reject malformed files", "p": 0.77}, {"id": "Repair malformed files", "p": 0.23}],
            "pruned": [], "side_node": "sn_ID", "written": true, "decision": "dec_DECISION_ID"}}
 ```
 
-`weigh` with `questions`, without `conversation`, or naming a premise with fewer than two
-children of the kind is a `422`, and nothing is charged.
+`pruned` is always empty, and `cutoff` is echoed without effect.
+
+`weigh` with `questions`, without `conversation`, naming a premise with fewer than two
+children of the kind, or naming a test or a fact you stated, is a `422`, and nothing is
+charged.
 
 ## Cost
 
