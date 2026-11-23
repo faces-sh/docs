@@ -58,6 +58,9 @@ a decision model, would choose between them.
 | `state_id` | A [state](/guides/states) (`fs_...`): its premises and decisions are the situation. Sent with `state`, the prose is an addendum for this call only (see [A state as the situation](#a-state-as-the-situation)). |
 | `into` | Only with `state_id` and a question: a premise of the state. Each option is written in as a premise it rests on (see [Options as premises](#options-as-premises)). |
 | `kind` | Only with `into`: `or` (the default) when the options are alternatives, one of which holds; `and` when they must all hold. |
+| `premise` | Only with `state_id`, not with `into`: the premise of the state these options are for. The face is shown it and what it reads, but not the premises it already rests on, so it does not repeat them. Nothing is written as a premise (see [Your own options](#your-own-options)). |
+| `options` | Only with `into`, in place of a question: options you already have, written in without asking a face (see [Your own options](#your-own-options)). |
+| `as` | Only with `options`: who writes, by the name a claim on the premise's branch holds. |
 | `depends_on` | Only with `state_id`: what the options rest on, a list of at most 200 premise keys, decision ids, option ids (`opt_...`) and choices ids (`cho_...`) in the state. The face is shown each of them, and the premises each directly depends on, in full (see [What a face is shown](/guides/states#what-a-face-is-shown)). The options added to the state record it. |
 | `max_choices` | The most options to return, 1 to 32. Default `8`. |
 
@@ -209,6 +212,34 @@ re-proposal:
 
 Weigh the options next with
 [decisions](/guides/decisions#weigh-a-premise).
+
+## Your own options
+
+To choose which options go in, ask with `premise` first: the options come back and nothing is
+written as a premise. Then send the ones you keep with `into` and `options`, each
+`{name, description}`, at most 32. No face is asked and nothing is charged; each option goes
+through the same check as above, against the premises already there and the options before it,
+so a near copy is matched and not written twice:
+
+```bash
+curl -X POST https://api.faces.sh/v1/choices \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"state_id": "fs_STATE_ID", "into": "handle bad input", "kind": "or",
+       "options": [{"name": "Skip malformed files", "description": "Leave a file that does not parse out, and report it"},
+                   {"name": "Reject malformed files", "description": "Refuse a file that does not parse"}]}'
+```
+
+```json
+{"object": "choices.written", "into": "handle bad input", "kind": "or",
+ "premises": ["Skip malformed files", "Reject malformed files"],
+ "new": ["Skip malformed files"], "matched": ["Reject malformed files"],
+ "side_node": "sn_ID", "usage": {"input_tokens": 0, "output_tokens": 0}}
+```
+
+A premise takes children of one kind only: an `or` option under a premise that rests on `and`
+children, or the reverse, is a `422` that says why. So is an option under a test, or under a
+fact you stated.
 
 ## Maestros
 
