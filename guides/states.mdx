@@ -63,6 +63,114 @@ All fields are optional:
 
 Any other field is a `422` that names it.
 
+## A state as a proof
+
+A state can also be built as a proof in progress: a tree of premises joined by AND and OR. Each
+premise is proved `[x]`, open `[ ]` or refuted `[-]`, and the state ends with a line that names
+what still stands between you and a proved goal. Writing and reading this way is free, and every
+write answers with that line.
+
+### Add a premise
+
+`POST /v1/states/{state_id}/premises` adds one premise. It is a `409` if the key exists.
+
+```bash
+curl -X POST https://api.faces.sh/v1/states/fs_STATE_ID/premises \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "the dinner is planned", "value": "A dinner party for six", "role": "goal",
+       "said": "Plan a dinner party for six."}'
+```
+
+```json
+{"object": "state.reply", "result": "Added the goal \"the dinner is planned\".",
+ "summary": ["Open. Proved when 1 is refined."],
+ "text": "Added the goal \"the dinner is planned\".\n\nOpen. Proved when 1 is refined.",
+ "premise": {"number": "1", "key": "the dinner is planned", "value": "A dinner party for six",
+             "role": "goal", "origin": "human", "truth": "open", "children": [], "...": "..."}}
+```
+
+`result` says what changed, `summary` is the proof's last line, `text` is both, and `premise` is
+the premise as `format=json` returns it.
+
+| Field | Meaning |
+|-------|---------|
+| `key` | Its name: plain text, 1 to 120 characters. Every other request names it by this key. |
+| `value` | What it says. |
+| `role` | `goal` or `test`. Left out, it is a fact. |
+| `and` / `or` | The premise it sits under. `and`: it must hold, with its siblings. `or`: it is one candidate, and one proved candidate is enough. A premise takes children of one kind only. |
+| `on` | The premises it reads, as a list of keys. Reading is not sitting under: it does not change what proves the premises it reads. |
+| `said` | The human's own words it comes from. A premise the human stated is true because they said it. |
+| `origin` | Who it comes from: `human`, `agent`, `tool` or `web`. |
+| `status` | `stated`, `verified`, `assumed`, `unresolved` or `invalidated`. |
+| `await` | What it waits on: `human`, `environment`, or a test's key. |
+| `description` | What it is, in a line. |
+| `as` | Who writes it, for a branch someone has claimed (see [Several agents](#several-agents-on-one-proof)). |
+
+### Change a premise
+
+`PATCH /v1/states/{state_id}/premises` changes only the fields it is given. A test's run is a
+status with the candidate it ran on (`tested`) and what it showed (`evidence`). A failed run
+refutes that candidate, and the next one is the one to try:
+
+```bash
+curl -X PATCH https://api.faces.sh/v1/states/fs_STATE_ID/premises \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"key": "everyone can eat it", "status": "invalidated", "tested": "pie and mash",
+       "evidence": "the pie has chicken"}'
+```
+
+```json
+{"object": "state.reply",
+ "text": "Edited \"everyone can eat it\": set its status to invalidated, recorded its run on \"pie and mash\" (failed) and recorded the run's evidence.\n\nOpen. Next to try: 1.2.1. Proved when 1.3 passes on 1.2.1."}
+```
+
+It also takes `value`, `to` (a new key; everything that named the old one follows), `description`,
+`await` (`none` clears it), `note`, `on`, `said`, `as`, and `refinement`. A premise with children
+is proved only once its `refinement` is `complete`: its children are all it needs. Set by hand,
+the proof says so on that premise's line, `(marked complete by hand)`, and after its last line.
+A tool that checked the children sends `refined_by` with it (`refine` or `choices`), and the
+proof says nothing more.
+
+### Read the proof
+
+`GET /v1/states/{state_id}/proof` returns the tree and its last line:
+
+```text
+[x] 1 the dinner is planned  AND
+[x]   1.1 the guests (axiom)
+[x]   1.2 the menu  OR
+[x]     1.2.1 curry and rice
+[-]     1.2.2 pie and mash
+[x]   1.3 test: everyone can eat it (passed on 1.2.1, failed on 1.2.2)
+
+Proved.
+```
+
+`format=json` returns each premise's fields instead, `format=problog` the proof as a ProbLog
+program, and `format=dot` as a Graphviz graph. `query=` lists the premises closest in meaning to
+a question, best first. `GET /v1/states/{state_id}/premise?key=...` returns one premise and its
+branch (`depth=`, or `up=true` for the premises it sits under), then every message linked to it.
+`POST /v1/states/{state_id}/note` with `key` and `text` links a message to a premise.
+`DELETE /v1/states/{state_id}/premises?key=...` removes one premise and its edges.
+
+### Several agents on one proof
+
+`POST /v1/states/{state_id}/claim` with `key` and `agent` gives that premise and everything under
+it to one agent, for `ttl_seconds` (default 1800). A write into the branch by anyone else is a
+`409`:
+
+```json
+{"object": "state.reply",
+ "error": "Not written: \"the menu\" is claimed by builder-A until 20:28, and this write is by no one named (`as`)",
+ "text": "Not written: \"the menu\" is claimed by builder-A until 20:28, and this write is by no one named (`as`)"}
+```
+
+The agent writes with `as`. `POST /v1/states/{state_id}/release` with `key` releases it, and
+`POST /v1/states/{state_id}/release-session` with `session` releases every claim taken in that
+session (writes name their session in the `X-Faces-Session` header).
+
 ## Take a turn
 
 Add `"conversation": "<id>"` to a request with a face on [chat](/guides/chat)
